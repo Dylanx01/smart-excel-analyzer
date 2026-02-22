@@ -1,3 +1,87 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark Mode */
+.dark body {
+  background-color: #0F172A;
+  color: #E2E8F0;
+}
+
+.dark .bg-white {
+  background-color: #1E293B !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #0F172A !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #1E293B !important;
+}
+
+.dark .border-gray-100 {
+  border-color: #334155 !important;
+}
+
+.dark .border-gray-200 {
+  border-color: #334155 !important;
+}
+
+.dark .text-gray-400 {
+  color: #94A3B8 !important;
+}
+
+.dark .text-gray-500 {
+  color: #94A3B8 !important;
+}
+
+.dark .text-gray-600 {
+  color: #CBD5E1 !important;
+}
+
+.dark .text-gray-700 {
+  color: #E2E8F0 !important;
+}
+
+.dark .text-gray-800 {
+  color: #F1F5F9 !important;
+}
+
+.dark .shadow-sm {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5) !important;
+}
+
+.dark .shadow-lg {
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+}
+
+.dark input, .dark select {
+  background-color: #1E293B !important;
+  color: #E2E8F0 !important;
+  border-color: #334155 !important;
+}
+
+.dark .bg-accent {
+  background-color: #1E3A8A20 !important;
+}
+
+.dark .bg-green-50 {
+  background-color: #052e16 !important;
+}
+
+.dark .bg-red-50 {
+  background-color: #450a0a !important;
+}
+
+.dark .bg-orange-50 {
+  background-color: #431407 !important;
+}
+
+.dark .bg-yellow-50 {
+  background-color: #422006 !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: #172554 !important;
+}

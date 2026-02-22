@@ -1,4 +1,5 @@
 import React from 'react';
+import { useDarkMode } from '../useDarkMode';
 
 const translations = {
   fr: {
@@ -17,6 +18,7 @@ const translations = {
 
 function Header({ language, setLanguage, onReset, view, setView }) {
   const t = translations[language];
+  const { darkMode, toggleDarkMode } = useDarkMode();
 
   return (
     <header className="bg-primary shadow-xl sticky top-0 z-50">
@@ -64,6 +66,14 @@ function Header({ language, setLanguage, onReset, view, setView }) {
 
         {/* Actions droite */}
         <div className="flex items-center gap-3">
+
+          {/* Bouton dark mode */}
+          <button
+            onClick={toggleDarkMode}
+            className="bg-blue-800 text-white px-3 py-2 rounded-xl hover:bg-blue-700 transition text-sm font-bold border border-blue-700"
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
 
           {/* Switch langue */}
           <div className="flex items-center bg-blue-800 rounded-xl overflow-hidden border border-blue-700">
