@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { supabase } from '../supabase';
 import { useToast } from './Toast';
+import * as XLSX from 'xlsx';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -28,6 +29,7 @@ const translations = {
     exportPDF: "PDF",
     exportWord: "Word",
     exportPPT: "PowerPoint",
+    exportExcel: "Excel",
     print: "Imprimer",
     share: "Partager",
     file: "Fichier analysé",
@@ -53,6 +55,7 @@ const translations = {
     exportPDF: "PDF",
     exportWord: "Word",
     exportPPT: "PowerPoint",
+    exportExcel: "Excel",
     print: "Print",
     share: "Share",
     file: "Analyzed file",
@@ -327,6 +330,55 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
     doc.save(`rapport_${fileName}.pdf`);
   };
 
+  const handleExportExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Feuille 1 — Résumé
+    const resumeData = [
+      ['Smart Excel Analyzer — Rapport'],
+      ['Fichier analysé', fileName],
+      ['Date', new Date().toLocaleDateString('fr-FR')],
+      [],
+      ['RÉSUMÉ GÉNÉRAL'],
+      ['Nombre de lignes', data.summary.total_rows],
+      ['Nombre de colonnes', data.summary.total_columns],
+      ['Valeurs manquantes', data.summary.missing_values],
+    ];
+    const wsResume = XLSX.utils.aoa_to_sheet(resumeData);
+    wsResume['!cols'] = [{ wch: 30 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, wsResume, 'Resume');
+
+    // Feuille 2 — KPIs
+    const kpiHeaders = ['Indicateur', 'Total', 'Moyenne', 'Min', 'Max', 'Nb lignes'];
+    const kpiRows = data.kpis.map(k => [
+      k.column, k.total, k.average, k.min, k.max, k.count
+    ]);
+    const wsKpis = XLSX.utils.aoa_to_sheet([kpiHeaders, ...kpiRows]);
+    wsKpis['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, wsKpis, 'Indicateurs');
+
+    // Feuille 3 — Alertes
+    if (data.alerts.length > 0) {
+      const alertHeaders = ['Type', 'Message'];
+      const alertRows = data.alerts.map(a => [a.type, a.message]);
+      const wsAlerts = XLSX.utils.aoa_to_sheet([alertHeaders, ...alertRows]);
+      wsAlerts['!cols'] = [{ wch: 15 }, { wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, wsAlerts, 'Alertes');
+    }
+
+    // Feuille 4 — Anomalies
+    if (data.anomalies.length > 0) {
+      const anomHeaders = ['Message'];
+      const anomRows = data.anomalies.map(a => [a.message]);
+      const wsAnom = XLSX.utils.aoa_to_sheet([anomHeaders, ...anomRows]);
+      wsAnom['!cols'] = [{ wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, wsAnom, 'Anomalies');
+    }
+
+    XLSX.writeFile(wb, `rapport_${fileName}.xlsx`);
+    toast.success('Export Excel généré avec succès !');
+  };
+
   const handleExportWord = () => {
     const content = `
 <!DOCTYPE html>
@@ -483,6 +535,9 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
           <div className="flex flex-wrap gap-2">
             <button onClick={handleExportPDF} className="bg-red-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-red-600 transition flex items-center gap-1">
               📄 {t.exportPDF}
+            </button>
+            <button onClick={handleExportExcel} className="bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-700 transition flex items-center gap-1">
+              📊 {t.exportExcel}
             </button>
             <button onClick={handleExportWord} className="bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-blue-800 transition flex items-center gap-1">
               📝 {t.exportWord}

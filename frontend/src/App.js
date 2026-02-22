@@ -9,6 +9,7 @@ import Workspaces from './components/Workspaces';
 import WorkspaceDetail from './components/WorkspaceDetail';
 import ShareView from './components/ShareView';
 import NotFound from './components/NotFound';
+import Overview from './components/Overview';
 import { ToastContainer } from './components/Toast';
 
 function App() {
@@ -19,7 +20,6 @@ function App() {
   const [language, setLanguage] = useState('fr');
   const [currentWorkspace, setCurrentWorkspace] = useState(null);
 
-  // Détection route
   const path = window.location.pathname;
   const shareMatch = path.match(/^\/share\/([a-z0-9]+)$/i);
   const shareId = shareMatch ? shareMatch[1] : null;
@@ -115,6 +115,14 @@ function App() {
             fileName={fileName}
             language={language}
             onReset={handleReset}
+          />
+        )}
+
+        {/* Vue Overview */}
+        {view === 'overview' && (
+          <Overview
+            language={language}
+            onOpenWorkspace={handleOpenWorkspace}
           />
         )}
 

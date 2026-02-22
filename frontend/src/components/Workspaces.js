@@ -12,6 +12,8 @@ const translations = {
     subtitle: "Organisez vos fichiers Excel par catégorie",
     newWorkspace: "Nouvel espace",
     createWorkspace: "Créer l'espace",
+    editWorkspace: "Modifier l'espace",
+    saveChanges: "Sauvegarder",
     cancel: "Annuler",
     workspaceName: "Nom de l'espace",
     workspaceDesc: "Description (optionnelle)",
@@ -19,6 +21,7 @@ const translations = {
     files: "fichier(s)",
     open: "Ouvrir",
     delete: "Supprimer",
+    edit: "Modifier",
     chooseIcon: "Choisir une icône",
     chooseColor: "Choisir une couleur",
     examples: "Exemples : RH, Finance, Ventes, Santé...",
@@ -32,6 +35,8 @@ const translations = {
     subtitle: "Organize your Excel files by category",
     newWorkspace: "New workspace",
     createWorkspace: "Create workspace",
+    editWorkspace: "Edit workspace",
+    saveChanges: "Save changes",
     cancel: "Cancel",
     workspaceName: "Workspace name",
     workspaceDesc: "Description (optional)",
@@ -39,6 +44,7 @@ const translations = {
     files: "file(s)",
     open: "Open",
     delete: "Delete",
+    edit: "Edit",
     chooseIcon: "Choose an icon",
     chooseColor: "Choose a color",
     examples: "Examples: HR, Finance, Sales, Health...",
@@ -49,6 +55,104 @@ const translations = {
   }
 };
 
+function EditModal({ workspace, onSave, onCancel, t }) {
+  const [name, setName] = useState(workspace.name);
+  const [description, setDescription] = useState(workspace.description || '');
+  const [icon, setIcon] = useState(workspace.icon);
+  const [color, setColor] = useState(workspace.color);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black bg-opacity-40 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full mx-4 flex flex-col gap-5">
+
+        <h3 className="font-black text-primary text-xl">✏️ {t.editWorkspace}</h3>
+
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder={t.workspaceName}
+          className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary transition"
+        />
+        <input
+          type="text"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder={t.workspaceDesc}
+          className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary transition"
+        />
+
+        {/* Icônes */}
+        <div>
+          <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseIcon}</p>
+          <div className="flex gap-2 flex-wrap">
+            {ICONS.map(i => (
+              <button
+                key={i}
+                onClick={() => setIcon(i)}
+                className={`text-2xl p-3 rounded-xl transition ${
+                  icon === i
+                    ? 'bg-accent border-2 border-secondary scale-110'
+                    : 'bg-gray-50 hover:bg-accent border-2 border-transparent'
+                }`}
+              >
+                {i}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Couleurs */}
+        <div>
+          <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseColor}</p>
+          <div className="flex gap-3">
+            {COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                style={{ background: c }}
+                className={`w-10 h-10 rounded-xl transition ${
+                  color === c ? 'ring-4 ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-105'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Preview */}
+        <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+            style={{ background: color + '20' }}
+          >
+            {icon}
+          </div>
+          <div>
+            <p className="font-bold text-primary">{name || 'Nom de l\'espace'}</p>
+            <p className="text-gray-400 text-xs">{description || 'Description...'}</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => onSave({ name, description, icon, color })}
+            className="bg-primary text-white font-bold px-6 py-3 rounded-xl hover:bg-secondary transition flex-1"
+          >
+            ✅ {t.saveChanges}
+          </button>
+          <button
+            onClick={onCancel}
+            className="bg-gray-100 text-gray-600 font-bold px-6 py-3 rounded-xl hover:bg-gray-200 transition"
+          >
+            {t.cancel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Workspaces({ language, onOpenWorkspace }) {
   const t = translations[language];
   const toast = useToast();
@@ -56,6 +160,7 @@ function Workspaces({ language, onOpenWorkspace }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editWorkspace, setEditWorkspace] = useState(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('date');
   const [name, setName] = useState('');
@@ -95,6 +200,24 @@ function Workspaces({ language, onOpenWorkspace }) {
       toast.success(`Espace "${name}" créé avec succès !`);
     } else {
       toast.error('Erreur lors de la création.');
+    }
+  };
+
+  const updateWorkspace = async ({ name, description, icon, color }) => {
+    if (!name.trim()) {
+      toast.warning('Veuillez entrer un nom pour l\'espace.');
+      return;
+    }
+    const { error } = await supabase
+      .from('categories')
+      .update({ name, description, icon, color })
+      .eq('id', editWorkspace.id);
+    if (!error) {
+      fetchWorkspaces();
+      toast.success(`Espace "${name}" modifié avec succès !`);
+      setEditWorkspace(null);
+    } else {
+      toast.error('Erreur lors de la modification.');
     }
   };
 
@@ -316,6 +439,12 @@ function Workspaces({ language, onOpenWorkspace }) {
                   📂 {t.open}
                 </button>
                 <button
+                  onClick={() => setEditWorkspace(ws)}
+                  className="bg-blue-50 text-blue-500 text-sm font-bold px-3 py-2 rounded-xl hover:bg-blue-100 transition"
+                >
+                  ✏️
+                </button>
+                <button
                   onClick={() => setConfirmDelete(ws)}
                   className="bg-red-50 text-red-500 text-sm font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition"
                 >
@@ -325,6 +454,16 @@ function Workspaces({ language, onOpenWorkspace }) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Modal édition */}
+      {editWorkspace && (
+        <EditModal
+          workspace={editWorkspace}
+          onSave={updateWorkspace}
+          onCancel={() => setEditWorkspace(null)}
+          t={t}
+        />
       )}
 
       <ConfirmModal

@@ -6,12 +6,14 @@ const translations = {
     title: "Smart Excel Analyzer",
     subtitle: "Analyse automatique & intelligente",
     quickAnalysis: "Analyse rapide",
+    overview: "Vue globale",
     workspaces: "Mes espaces",
   },
   en: {
     title: "Smart Excel Analyzer",
     subtitle: "Automatic & intelligent analysis",
     quickAnalysis: "Quick analysis",
+    overview: "Overview",
     workspaces: "My workspaces",
   }
 };
@@ -50,6 +52,17 @@ function Header({ language, setLanguage, onReset, view, setView }) {
           >
             <span>📊</span>
             <span>{t.quickAnalysis}</span>
+          </button>
+          <button
+            onClick={() => setView('overview')}
+            className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition ${
+              view === 'overview'
+                ? 'bg-white text-primary shadow-sm'
+                : 'text-blue-200 hover:text-white hover:bg-blue-700'
+            }`}
+          >
+            <span>🌍</span>
+            <span>{t.overview}</span>
           </button>
           <button
             onClick={() => setView('workspaces')}
@@ -111,6 +124,14 @@ function Header({ language, setLanguage, onReset, view, setView }) {
           }`}
         >
           📊 {t.quickAnalysis}
+        </button>
+        <button
+          onClick={() => setView('overview')}
+          className={`flex-1 text-sm font-semibold py-2 rounded-xl transition ${
+            view === 'overview' ? 'bg-white text-primary' : 'text-blue-200 hover:bg-blue-700'
+          }`}
+        >
+          🌍 {t.overview}
         </button>
         <button
           onClick={() => setView('workspaces')}
