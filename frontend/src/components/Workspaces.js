@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 
-const ICONS = ['📁', '👥', '📊', '💰', '📋', '🏢', '📝', '⚙️'];
-const COLORS = ['#1E3A8A', '#DC2626', '#16A34A', '#D97706', '#7C3AED', '#0891B2'];
+const ICONS = ['📁', '👥', '📊', '💰', '📋', '🏢', '📝', '⚙️', '🏥', '🎓', '🛒', '🏦'];
+const COLORS = ['#1E3A8A', '#DC2626', '#16A34A', '#D97706', '#7C3AED', '#0891B2', '#DB2777', '#EA580C'];
 
 const translations = {
   fr: {
@@ -19,6 +19,7 @@ const translations = {
     delete: "Supprimer",
     chooseIcon: "Choisir une icône",
     chooseColor: "Choisir une couleur",
+    examples: "Exemples : RH, Finance, Ventes, Santé...",
   },
   en: {
     title: "My Workspaces",
@@ -34,6 +35,7 @@ const translations = {
     delete: "Delete",
     chooseIcon: "Choose an icon",
     chooseColor: "Choose a color",
+    examples: "Examples: HR, Finance, Sales, Health...",
   }
 };
 
@@ -82,17 +84,17 @@ function Workspaces({ language, onOpenWorkspace }) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-primary">{t.title}</h2>
-          <p className="text-gray-500 text-sm">{t.subtitle}</p>
+          <h2 className="text-2xl font-black text-primary">{t.title}</h2>
+          <p className="text-gray-400 text-sm">{t.subtitle}</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-primary text-white font-semibold px-4 py-2 rounded-xl hover:bg-secondary transition"
+          className="bg-primary text-white font-bold px-5 py-3 rounded-2xl hover:bg-secondary transition shadow-sm flex items-center gap-2"
         >
           ➕ {t.newWorkspace}
         </button>
@@ -101,31 +103,36 @@ function Workspaces({ language, onOpenWorkspace }) {
       {/* Formulaire création */}
       {showForm && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="font-bold text-primary text-lg mb-4">✨ Créer un espace</h3>
           <div className="flex flex-col gap-4">
             <input
               type="text"
               placeholder={t.workspaceName}
               value={name}
               onChange={e => setName(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary"
+              className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary focus:ring-2 focus:ring-accent transition"
             />
             <input
               type="text"
-              placeholder={t.workspaceDesc}
+              placeholder={t.examples}
               value={description}
               onChange={e => setDescription(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary"
+              className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary focus:ring-2 focus:ring-accent transition"
             />
 
             {/* Icônes */}
             <div>
-              <p className="text-sm text-gray-500 mb-2">{t.chooseIcon}</p>
+              <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseIcon}</p>
               <div className="flex gap-2 flex-wrap">
                 {ICONS.map(i => (
                   <button
                     key={i}
                     onClick={() => setIcon(i)}
-                    className={`text-2xl p-2 rounded-xl transition ${icon === i ? 'bg-accent border-2 border-secondary' : 'bg-gray-100 hover:bg-accent'}`}
+                    className={`text-2xl p-3 rounded-xl transition ${
+                      icon === i
+                        ? 'bg-accent border-2 border-secondary scale-110'
+                        : 'bg-gray-50 hover:bg-accent border-2 border-transparent'
+                    }`}
                   >
                     {i}
                   </button>
@@ -135,29 +142,45 @@ function Workspaces({ language, onOpenWorkspace }) {
 
             {/* Couleurs */}
             <div>
-              <p className="text-sm text-gray-500 mb-2">{t.chooseColor}</p>
-              <div className="flex gap-2">
+              <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseColor}</p>
+              <div className="flex gap-3">
                 {COLORS.map(c => (
                   <button
                     key={c}
                     onClick={() => setColor(c)}
                     style={{ background: c }}
-                    className={`w-8 h-8 rounded-full transition ${color === c ? 'ring-4 ring-offset-2 ring-gray-400' : ''}`}
+                    className={`w-10 h-10 rounded-xl transition ${
+                      color === c ? 'ring-4 ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-105'
+                    }`}
                   />
                 ))}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                style={{ background: color + '20' }}
+              >
+                {icon}
+              </div>
+              <div>
+                <p className="font-bold text-primary">{name || 'Nom de l\'espace'}</p>
+                <p className="text-gray-400 text-xs">{description || 'Description...'}</p>
               </div>
             </div>
 
             <div className="flex gap-2">
               <button
                 onClick={createWorkspace}
-                className="bg-primary text-white font-semibold px-6 py-2 rounded-xl hover:bg-secondary transition"
+                className="bg-primary text-white font-bold px-6 py-3 rounded-xl hover:bg-secondary transition flex-1"
               >
                 ✅ {t.createWorkspace}
               </button>
               <button
                 onClick={() => setShowForm(false)}
-                className="bg-gray-100 text-gray-600 font-semibold px-6 py-2 rounded-xl hover:bg-gray-200 transition"
+                className="bg-gray-100 text-gray-600 font-bold px-6 py-3 rounded-xl hover:bg-gray-200 transition"
               >
                 {t.cancel}
               </button>
@@ -168,42 +191,70 @@ function Workspaces({ language, onOpenWorkspace }) {
 
       {/* Liste workspaces */}
       {loading ? (
-        <div className="text-center text-gray-400 py-10">Chargement...</div>
+        <div className="text-center text-gray-400 py-16">
+          <div className="text-4xl mb-4 animate-bounce">📂</div>
+          <p>Chargement...</p>
+        </div>
       ) : workspaces.length === 0 ? (
-        <div className="text-center text-gray-400 py-16 bg-white rounded-2xl border border-gray-100">
-          <div className="text-5xl mb-4">📂</div>
-          <p>{t.noWorkspaces}</p>
+        <div className="text-center py-24 bg-white rounded-2xl border border-gray-100">
+          <div className="text-6xl mb-4">📂</div>
+          <h3 className="text-xl font-bold text-primary mb-2">{t.noWorkspaces}</h3>
+          <p className="text-gray-400 text-sm mb-6">Créez un espace pour organiser vos fichiers Excel</p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-primary text-white font-bold px-6 py-3 rounded-2xl hover:bg-secondary transition"
+          >
+            ➕ {t.newWorkspace}
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {workspaces.map(ws => (
-            <div key={ws.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4">
+            <div
+              key={ws.id}
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 hover:shadow-md transition group"
+            >
+              {/* Header workspace */}
               <div className="flex items-center gap-3">
                 <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 group-hover:scale-105 transition"
                   style={{ background: ws.color + '20' }}
                 >
                   {ws.icon}
                 </div>
-                <div>
-                  <h3 className="font-bold text-primary">{ws.name}</h3>
-                  {ws.description && <p className="text-gray-400 text-xs">{ws.description}</p>}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-black text-primary truncate">{ws.name}</h3>
+                  {ws.description && (
+                    <p className="text-gray-400 text-xs truncate">{ws.description}</p>
+                  )}
                 </div>
               </div>
-              <p className="text-gray-400 text-sm">
-                {ws.files?.[0]?.count || 0} {t.files}
-              </p>
+
+              {/* Stats */}
+              <div
+                className="rounded-xl px-4 py-3 flex items-center justify-between"
+                style={{ background: ws.color + '10' }}
+              >
+                <span className="text-sm font-bold" style={{ color: ws.color }}>
+                  📊 {ws.files?.[0]?.count || 0} {t.files}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {new Date(ws.created_at).toLocaleDateString('fr-FR')}
+                </span>
+              </div>
+
+              {/* Actions */}
               <div className="flex gap-2">
                 <button
                   onClick={() => onOpenWorkspace(ws)}
                   style={{ background: ws.color }}
-                  className="text-white text-sm font-semibold px-4 py-2 rounded-xl flex-1 hover:opacity-90 transition"
+                  className="text-white text-sm font-bold px-4 py-2 rounded-xl flex-1 hover:opacity-90 transition flex items-center justify-center gap-2"
                 >
                   📂 {t.open}
                 </button>
                 <button
                   onClick={() => deleteWorkspace(ws.id)}
-                  className="bg-red-50 text-red-500 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-red-100 transition"
+                  className="bg-red-50 text-red-500 text-sm font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition"
                 >
                   🗑️
                 </button>

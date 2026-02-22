@@ -8,20 +8,30 @@ const translations = {
   fr: {
     back: "Retour",
     upload: "Uploader un fichier Excel",
+    uploadDesc: "Glissez-déposez ou cliquez pour sélectionner",
     history: "Historique des fichiers",
     noFiles: "Aucun fichier uploadé dans cet espace",
+    noFilesDesc: "Uploadez votre premier fichier Excel pour commencer",
     analyze: "Analyser",
     delete: "Supprimer",
     compare: "Comparer",
+    selectTwo: "Sélectionnez un 2ème fichier",
+    files: "fichier(s)",
+    formats: "Formats acceptés : .xlsx, .xls",
   },
   en: {
     back: "Back",
     upload: "Upload an Excel file",
+    uploadDesc: "Drag & drop or click to select",
     history: "Files history",
     noFiles: "No files uploaded in this workspace",
+    noFilesDesc: "Upload your first Excel file to get started",
     analyze: "Analyze",
     delete: "Delete",
     compare: "Compare",
+    selectTwo: "Select a 2nd file",
+    files: "file(s)",
+    formats: "Accepted formats: .xlsx, .xls",
   }
 };
 
@@ -72,7 +82,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
           file_name: file.name,
           analysis_data: result.data,
         }]);
-
         setCurrentData(result.data);
         setCurrentFile(file.name);
         fetchFiles();
@@ -168,20 +177,22 @@ function WorkspaceDetail({ workspace, language, onBack }) {
       <div className="flex items-center gap-4">
         <button
           onClick={onBack}
-          className="bg-gray-100 text-gray-600 font-semibold px-4 py-2 rounded-xl hover:bg-gray-200 transition"
+          className="bg-gray-100 text-gray-600 font-bold px-4 py-2 rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
         >
           ← {t.back}
         </button>
         <div className="flex items-center gap-3">
           <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-sm"
             style={{ background: workspace.color + '20' }}
           >
             {workspace.icon}
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-primary">{workspace.name}</h2>
-            {workspace.description && <p className="text-gray-400 text-sm">{workspace.description}</p>}
+            <h2 className="text-2xl font-black text-primary">{workspace.name}</h2>
+            {workspace.description && (
+              <p className="text-gray-400 text-sm">{workspace.description}</p>
+            )}
           </div>
         </div>
       </div>
@@ -189,12 +200,20 @@ function WorkspaceDetail({ workspace, language, onBack }) {
       {/* Zone upload */}
       {!currentData && !analyzing && !compareData && (
         <div
-          className="w-full border-4 border-dashed border-blue-300 rounded-2xl p-10 text-center cursor-pointer hover:border-secondary hover:bg-accent transition"
+          className="w-full border-4 border-dashed border-blue-200 rounded-3xl p-12 text-center cursor-pointer hover:border-secondary hover:bg-accent transition group"
           onClick={() => document.getElementById('wsFileInput').click()}
         >
-          <div className="text-4xl mb-3">📂</div>
-          <p className="text-primary font-bold text-lg">{t.upload}</p>
-          <p className="text-gray-400 text-sm mt-1">Formats acceptés : .xlsx, .xls</p>
+          <div className="flex justify-center mb-4">
+            <div
+              className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl group-hover:scale-110 transition"
+              style={{ background: workspace.color + '15' }}
+            >
+              📂
+            </div>
+          </div>
+          <h3 className="text-xl font-black text-primary mb-1">{t.upload}</h3>
+          <p className="text-gray-400 text-sm mb-1">{t.uploadDesc}</p>
+          <p className="text-gray-300 text-xs">{t.formats}</p>
           <input
             id="wsFileInput"
             type="file"
@@ -202,6 +221,12 @@ function WorkspaceDetail({ workspace, language, onBack }) {
             className="hidden"
             onChange={e => { if (e.target.files[0]) handleUpload(e.target.files[0]); }}
           />
+          <button
+            className="mt-6 text-white font-bold px-8 py-3 rounded-2xl hover:opacity-90 transition shadow"
+            style={{ background: workspace.color }}
+          >
+            Choisir un fichier →
+          </button>
         </div>
       )}
 
@@ -212,7 +237,7 @@ function WorkspaceDetail({ workspace, language, onBack }) {
         <div>
           <button
             onClick={() => { setCurrentData(null); setCurrentFile(''); }}
-            className="mb-4 bg-gray-100 text-gray-600 font-semibold px-4 py-2 rounded-xl hover:bg-gray-200 transition"
+            className="mb-4 bg-gray-100 text-gray-600 font-bold px-4 py-2 rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
           >
             ← Retour à l'espace
           </button>
@@ -225,7 +250,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
         </div>
       )}
 
-      {/* Comparaison */}
       {comparing && <Loader language={language} />}
 
       {compareData && !comparing && (
@@ -241,28 +265,43 @@ function WorkspaceDetail({ workspace, language, onBack }) {
       {/* Historique */}
       {!currentData && !analyzing && !compareData && (
         <div>
-          <h3 className="text-lg font-bold text-primary mb-4">📋 {t.history}</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-black text-primary">📋 {t.history}</h3>
+            {files.length > 0 && (
+              <span className="bg-accent text-secondary text-xs font-bold px-3 py-1 rounded-full">
+                {files.length} {t.files}
+              </span>
+            )}
+          </div>
 
+          {/* Bannière comparaison */}
           {selectedForCompare.length > 0 && (
-            <div className="bg-accent border border-secondary rounded-2xl p-4 mb-4 flex items-center justify-between">
-              <p className="text-primary font-semibold text-sm">
-                🔄 {selectedForCompare.length === 2
-                  ? <><strong>{selectedForCompare[0].file_name}</strong> vs <strong>{selectedForCompare[1].file_name}</strong></>
-                  : <>Sélectionnez un 2ème fichier à comparer</>
-                }
-              </p>
+            <div
+              className="rounded-2xl p-4 mb-4 flex items-center justify-between"
+              style={{ background: workspace.color + '10', border: `2px solid ${workspace.color}30` }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔄</span>
+                <p className="font-bold text-sm" style={{ color: workspace.color }}>
+                  {selectedForCompare.length === 2
+                    ? `${selectedForCompare[0].file_name} vs ${selectedForCompare[1].file_name}`
+                    : t.selectTwo
+                  }
+                </p>
+              </div>
               <div className="flex gap-2">
                 {selectedForCompare.length === 2 && (
                   <button
                     onClick={handleCompare}
-                    className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-secondary transition"
+                    style={{ background: workspace.color }}
+                    className="text-white text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 transition"
                   >
                     🔄 {t.compare}
                   </button>
                 )}
                 <button
                   onClick={() => setSelectedForCompare([])}
-                  className="text-gray-400 hover:text-gray-600 text-sm px-2"
+                  className="text-gray-400 hover:text-gray-600 text-sm px-2 font-bold"
                 >
                   ✕
                 </button>
@@ -271,53 +310,63 @@ function WorkspaceDetail({ workspace, language, onBack }) {
           )}
 
           {loading ? (
-            <div className="text-center text-gray-400 py-10">Chargement...</div>
+            <div className="text-center text-gray-400 py-16">
+              <div className="text-4xl mb-4 animate-bounce">📊</div>
+              <p>Chargement...</p>
+            </div>
           ) : files.length === 0 ? (
-            <div className="text-center text-gray-400 py-16 bg-white rounded-2xl border border-gray-100">
+            <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
               <div className="text-5xl mb-4">📭</div>
-              <p>{t.noFiles}</p>
+              <h3 className="font-bold text-primary mb-1">{t.noFiles}</h3>
+              <p className="text-gray-400 text-sm">{t.noFilesDesc}</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
               {files.map(file => (
                 <div
                   key={file.id}
-                  className={`bg-white rounded-2xl border p-4 flex items-center justify-between transition ${
+                  className={`bg-white rounded-2xl border p-4 flex items-center justify-between transition hover:shadow-sm ${
                     selectedForCompare.find(f => f.id === file.id)
                       ? 'border-secondary bg-accent'
                       : 'border-gray-100'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">📊</span>
-                    <div>
-                      <p className="font-semibold text-primary text-sm">{file.file_name}</p>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                      style={{ background: workspace.color + '15' }}
+                    >
+                      📊
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-primary text-sm truncate">{file.file_name}</p>
                       <p className="text-gray-400 text-xs">
-                        {new Date(file.uploaded_at).toLocaleDateString('fr-FR')} à {new Date(file.uploaded_at).toLocaleTimeString('fr-FR')}
+                        {new Date(file.uploaded_at).toLocaleDateString('fr-FR')} à {new Date(file.uploaded_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-shrink-0">
                     <button
                       onClick={() => toggleCompare(file)}
-                      className={`text-sm font-semibold px-3 py-2 rounded-xl transition ${
+                      className={`text-sm font-bold px-3 py-2 rounded-xl transition ${
                         selectedForCompare.find(f => f.id === file.id)
-                          ? 'bg-secondary text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-accent'
+                          ? 'text-white'
+                          : 'bg-gray-100 text-gray-500 hover:bg-accent'
                       }`}
+                      style={selectedForCompare.find(f => f.id === file.id) ? { background: workspace.color } : {}}
                     >
                       🔄
                     </button>
                     <button
                       onClick={() => handleAnalyzeExisting(file)}
                       style={{ background: workspace.color }}
-                      className="text-white text-sm font-semibold px-3 py-2 rounded-xl hover:opacity-90 transition"
+                      className="text-white text-sm font-bold px-3 py-2 rounded-xl hover:opacity-90 transition"
                     >
                       📊 {t.analyze}
                     </button>
                     <button
                       onClick={() => handleDelete(file.id)}
-                      className="bg-red-50 text-red-500 text-sm font-semibold px-3 py-2 rounded-xl hover:bg-red-100 transition"
+                      className="bg-red-50 text-red-500 text-sm font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition"
                     >
                       🗑️
                     </button>
