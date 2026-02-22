@@ -18,7 +18,7 @@ const translations = {
   }
 };
 
-function Header({ language, setLanguage, onReset, view, setView }) {
+function Header({ language, setLanguage, onReset, view, setView, user, onLogout }) {
   const t = translations[language];
   const { darkMode, toggleDarkMode } = useDarkMode();
 
@@ -87,6 +87,22 @@ function Header({ language, setLanguage, onReset, view, setView }) {
           >
             {darkMode ? '☀️' : '🌙'}
           </button>
+
+          {/* User + Déconnexion */}
+          {user && (
+            <div className="flex items-center gap-2 bg-blue-800 rounded-xl px-3 py-2 border border-blue-700">
+              <span className="text-white text-xs font-bold hidden md:block truncate max-w-32">
+                👤 {user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0]}
+              </span>
+              <button
+                onClick={onLogout}
+                className="text-red-300 hover:text-red-100 text-xs font-bold transition"
+                title={language === 'fr' ? 'Se déconnecter' : 'Logout'}
+              >
+                🚪
+              </button>
+            </div>
+          )}
 
           {/* Switch langue */}
           <div className="flex items-center bg-blue-800 rounded-xl overflow-hidden border border-blue-700">

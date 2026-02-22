@@ -83,7 +83,6 @@ function EditModal({ workspace, onSave, onCancel, t }) {
           className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary transition"
         />
 
-        {/* Icônes */}
         <div>
           <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseIcon}</p>
           <div className="flex gap-2 flex-wrap">
@@ -103,7 +102,6 @@ function EditModal({ workspace, onSave, onCancel, t }) {
           </div>
         </div>
 
-        {/* Couleurs */}
         <div>
           <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseColor}</p>
           <div className="flex gap-3">
@@ -120,7 +118,6 @@ function EditModal({ workspace, onSave, onCancel, t }) {
           </div>
         </div>
 
-        {/* Preview */}
         <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
@@ -174,9 +171,11 @@ function Workspaces({ language, onOpenWorkspace }) {
 
   const fetchWorkspaces = async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('categories')
       .select('*, files(count)')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     if (!error) setWorkspaces(data || []);
     setLoading(false);
@@ -187,9 +186,10 @@ function Workspaces({ language, onOpenWorkspace }) {
       toast.warning('Veuillez entrer un nom pour l\'espace.');
       return;
     }
+    const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase
       .from('categories')
-      .insert([{ name, description, icon, color }]);
+      .insert([{ name, description, icon, color, user_id: user.id }]);
     if (!error) {
       setName('');
       setDescription('');
@@ -240,7 +240,6 @@ function Workspaces({ language, onOpenWorkspace }) {
   return (
     <div className="flex flex-col gap-8">
 
-      {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-primary">{t.title}</h2>
@@ -254,7 +253,6 @@ function Workspaces({ language, onOpenWorkspace }) {
         </button>
       </div>
 
-      {/* Formulaire création */}
       {showForm && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h3 className="font-bold text-primary text-lg mb-4">✨ Créer un espace</h3>
@@ -274,7 +272,6 @@ function Workspaces({ language, onOpenWorkspace }) {
               className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-secondary focus:ring-2 focus:ring-accent transition"
             />
 
-            {/* Icônes */}
             <div>
               <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseIcon}</p>
               <div className="flex gap-2 flex-wrap">
@@ -294,7 +291,6 @@ function Workspaces({ language, onOpenWorkspace }) {
               </div>
             </div>
 
-            {/* Couleurs */}
             <div>
               <p className="text-sm text-gray-500 mb-2 font-semibold">{t.chooseColor}</p>
               <div className="flex gap-3">
@@ -311,7 +307,6 @@ function Workspaces({ language, onOpenWorkspace }) {
               </div>
             </div>
 
-            {/* Preview */}
             <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
@@ -343,7 +338,6 @@ function Workspaces({ language, onOpenWorkspace }) {
         </div>
       )}
 
-      {/* Barre recherche + tri */}
       {workspaces.length > 0 && (
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -367,7 +361,6 @@ function Workspaces({ language, onOpenWorkspace }) {
         </div>
       )}
 
-      {/* Liste workspaces */}
       {loading ? (
         <div className="text-center text-gray-400 py-16">
           <div className="text-4xl mb-4 animate-bounce">📂</div>
@@ -456,7 +449,6 @@ function Workspaces({ language, onOpenWorkspace }) {
         </div>
       )}
 
-      {/* Modal édition */}
       {editWorkspace && (
         <EditModal
           workspace={editWorkspace}

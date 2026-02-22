@@ -91,10 +91,12 @@ function WorkspaceDetail({ workspace, language, onBack }) {
       });
       const result = await response.json();
       if (result.status === 'success') {
+        const { data: { user } } = await supabase.auth.getUser();
         await supabase.from('files').insert([{
           category_id: workspace.id,
           file_name: file.name,
           analysis_data: result.data,
+          user_id: user.id,
         }]);
         setCurrentData(result.data);
         setCurrentFile(file.name);
@@ -204,7 +206,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
   return (
     <div className="flex flex-col gap-6">
 
-      {/* Header */}
       <div className="flex items-center gap-4">
         <button
           onClick={onBack}
@@ -228,7 +229,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
         </div>
       </div>
 
-      {/* Zone upload */}
       {!currentData && !analyzing && !compareData && (
         <div
           className="w-full border-4 border-dashed border-blue-200 rounded-3xl p-12 text-center cursor-pointer hover:border-secondary hover:bg-accent transition group"
@@ -263,7 +263,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
 
       {analyzing && <Loader language={language} />}
 
-      {/* Dashboard */}
       {currentData && !analyzing && (
         <div>
           <button
@@ -293,7 +292,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
         </div>
       )}
 
-      {/* Historique */}
       {!currentData && !analyzing && !compareData && (
         <div>
           <div className="flex flex-col gap-3 mb-4">
@@ -306,7 +304,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
               )}
             </div>
 
-            {/* Barre recherche + tri */}
             {files.length > 0 && (
               <div className="flex gap-2">
                 <div className="flex-1 relative">
@@ -331,7 +328,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
             )}
           </div>
 
-          {/* Bannière comparaison */}
           {selectedForCompare.length > 0 && (
             <div
               className="rounded-2xl p-4 mb-4 flex items-center justify-between"
