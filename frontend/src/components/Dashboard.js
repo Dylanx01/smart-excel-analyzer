@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { supabase } from '../supabase';
+import { useToast } from './Toast';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -281,6 +282,7 @@ function ChartCard({ chart }) {
 function Dashboard({ data, fileName, language, onReset, readOnly }) {
   const t = translations[language];
   const insights = generateInsight(data, language);
+  const toast = useToast();
 
   const handlePrint = () => window.print();
 
@@ -459,10 +461,12 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
       if (!error) {
         const shareUrl = `${window.location.origin}/share/${shareId}`;
         await navigator.clipboard.writeText(shareUrl);
-        alert(`Lien copie !\n${shareUrl}\n\nValable 7 jours.`);
+        toast.success(`Lien copié ! Valable 7 jours.`);
+      } else {
+        toast.error('Erreur lors du partage.');
       }
     } catch (err) {
-      alert('Erreur lors du partage.');
+      toast.error('Erreur lors du partage.');
     }
   };
 

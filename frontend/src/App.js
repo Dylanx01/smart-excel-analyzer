@@ -8,6 +8,7 @@ import Loader from './components/Loader';
 import Workspaces from './components/Workspaces';
 import WorkspaceDetail from './components/WorkspaceDetail';
 import ShareView from './components/ShareView';
+import { ToastContainer } from './components/Toast';
 
 function App() {
   const [data, setData] = useState(null);
@@ -74,6 +75,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+  <ToastContainer />
       <Header
         language={language}
         setLanguage={setLanguage}

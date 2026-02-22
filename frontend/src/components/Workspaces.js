@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
+import { useToast } from './Toast';
+import ConfirmModal from './ConfirmModal';
 
 const ICONS = ['📁', '👥', '📊', '💰', '📋', '🏢', '📝', '⚙️', '🏥', '🎓', '🛒', '🏦'];
 const COLORS = ['#1E3A8A', '#DC2626', '#16A34A', '#D97706', '#7C3AED', '#0891B2', '#DB2777', '#EA580C'];
@@ -20,6 +22,10 @@ const translations = {
     chooseIcon: "Choisir une icône",
     chooseColor: "Choisir une couleur",
     examples: "Exemples : RH, Finance, Ventes, Santé...",
+    search: "Rechercher un espace...",
+    noResults: "Aucun espace trouvé pour cette recherche",
+    sortDate: "Date",
+    sortName: "Nom",
   },
   en: {
     title: "My Workspaces",
@@ -36,14 +42,22 @@ const translations = {
     chooseIcon: "Choose an icon",
     chooseColor: "Choose a color",
     examples: "Examples: HR, Finance, Sales, Health...",
+    search: "Search a workspace...",
+    noResults: "No workspace found for this search",
+    sortDate: "Date",
+    sortName: "Name",
   }
 };
 
 function Workspaces({ language, onOpenWorkspace }) {
   const t = translations[language];
+  const toast = useToast();
   const [workspaces, setWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('date');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('📁');
@@ -64,7 +78,10 @@ function Workspaces({ language, onOpenWorkspace }) {
   };
 
   const createWorkspace = async () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      toast.warning('Veuillez entrer un nom pour l\'espace.');
+      return;
+    }
     const { error } = await supabase
       .from('categories')
       .insert([{ name, description, icon, color }]);
@@ -75,13 +92,27 @@ function Workspaces({ language, onOpenWorkspace }) {
       setColor('#1E3A8A');
       setShowForm(false);
       fetchWorkspaces();
+      toast.success(`Espace "${name}" créé avec succès !`);
+    } else {
+      toast.error('Erreur lors de la création.');
     }
   };
 
   const deleteWorkspace = async (id) => {
+    const ws = workspaces.find(w => w.id === id);
     await supabase.from('categories').delete().eq('id', id);
     fetchWorkspaces();
+    toast.success(`Espace "${ws?.name}" supprimé.`);
+    setConfirmDelete(null);
   };
+
+  const filteredWorkspaces = workspaces
+    .filter(ws => ws.name.toLowerCase().includes(search.toLowerCase()) ||
+      ws.description?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
 
   return (
     <div className="flex flex-col gap-8">
@@ -189,6 +220,30 @@ function Workspaces({ language, onOpenWorkspace }) {
         </div>
       )}
 
+      {/* Barre recherche + tri */}
+      {workspaces.length > 0 && (
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <input
+              type="text"
+              placeholder={t.search}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-secondary transition"
+            />
+          </div>
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-secondary transition bg-white"
+          >
+            <option value="date">📅 {t.sortDate}</option>
+            <option value="name">🔤 {t.sortName}</option>
+          </select>
+        </div>
+      )}
+
       {/* Liste workspaces */}
       {loading ? (
         <div className="text-center text-gray-400 py-16">
@@ -207,14 +262,24 @@ function Workspaces({ language, onOpenWorkspace }) {
             ➕ {t.newWorkspace}
           </button>
         </div>
+      ) : filteredWorkspaces.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
+          <div className="text-4xl mb-3">🔍</div>
+          <p className="text-gray-400 text-sm">{t.noResults}</p>
+          <button
+            onClick={() => setSearch('')}
+            className="mt-3 text-secondary text-sm font-bold hover:underline"
+          >
+            Effacer la recherche
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {workspaces.map(ws => (
+          {filteredWorkspaces.map(ws => (
             <div
               key={ws.id}
               className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 hover:shadow-md transition group"
             >
-              {/* Header workspace */}
               <div className="flex items-center gap-3">
                 <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0 group-hover:scale-105 transition"
@@ -230,7 +295,6 @@ function Workspaces({ language, onOpenWorkspace }) {
                 </div>
               </div>
 
-              {/* Stats */}
               <div
                 className="rounded-xl px-4 py-3 flex items-center justify-between"
                 style={{ background: ws.color + '10' }}
@@ -243,7 +307,6 @@ function Workspaces({ language, onOpenWorkspace }) {
                 </span>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-2">
                 <button
                   onClick={() => onOpenWorkspace(ws)}
@@ -253,7 +316,7 @@ function Workspaces({ language, onOpenWorkspace }) {
                   📂 {t.open}
                 </button>
                 <button
-                  onClick={() => deleteWorkspace(ws.id)}
+                  onClick={() => setConfirmDelete(ws)}
                   className="bg-red-50 text-red-500 text-sm font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition"
                 >
                   🗑️
@@ -263,6 +326,15 @@ function Workspaces({ language, onOpenWorkspace }) {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        title="Supprimer l'espace ?"
+        message={`L'espace "${confirmDelete?.name}" et tous ses fichiers seront supprimés définitivement.`}
+        onConfirm={() => deleteWorkspace(confirmDelete?.id)}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
     </div>
   );
 }
