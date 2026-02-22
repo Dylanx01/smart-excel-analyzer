@@ -1,4 +1,6 @@
 import React from 'react';
+import { jsPDF } from 'jspdf';
+import { supabase } from '../supabase';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -25,6 +27,7 @@ const translations = {
     exportWord: "Exporter Word",
     exportPPT: "Exporter PowerPoint",
     print: "Imprimer",
+    share: "Partager",
     file: "Fichier analysé",
   },
   en: {
@@ -47,6 +50,7 @@ const translations = {
     exportWord: "Export Word",
     exportPPT: "Export PowerPoint",
     print: "Print",
+    share: "Share",
     file: "Analyzed file",
   }
 };
@@ -121,17 +125,16 @@ function ChartCard({ chart }) {
   );
 }
 
-function Dashboard({ data, fileName, language, onReset }) {
+function Dashboard({ data, fileName, language, onReset, readOnly }) {
   const t = translations[language];
 
   const handlePrint = () => window.print();
 
-  const handleExportPDF = async () => {
-    const { jsPDF } = await import('jspdf');
+  const handleExportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.setTextColor(30, 58, 138);
-    doc.text('Smart Excel Analyzer — Rapport', 20, 20);
+    doc.text('Smart Excel Analyzer - Rapport', 20, 20);
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
     doc.text(`Fichier : ${fileName}`, 20, 35);
@@ -141,13 +144,15 @@ function Dashboard({ data, fileName, language, onReset }) {
     let y = 80;
     doc.setFontSize(14);
     doc.setTextColor(30, 58, 138);
-    doc.text('Indicateurs clés :', 20, y);
+    doc.text('Indicateurs cles :', 20, y);
     y += 10;
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     data.kpis.forEach(kpi => {
-      doc.text(`${kpi.column} — Total: ${kpi.total} | Moyenne: ${kpi.average} | Min: ${kpi.min} | Max: ${kpi.max}`, 20, y);
+      const line = `${kpi.column} - Total: ${kpi.total} | Moyenne: ${kpi.average} | Min: ${kpi.min} | Max: ${kpi.max}`;
+      doc.text(line, 20, y);
       y += 8;
+      if (y > 270) { doc.addPage(); y = 20; }
     });
     if (data.alerts.length > 0) {
       y += 5;
@@ -158,8 +163,9 @@ function Dashboard({ data, fileName, language, onReset }) {
       doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
       data.alerts.forEach(alert => {
-        doc.text(`⚠ ${alert.message}`, 20, y);
+        doc.text(`! ${alert.message.replace(/[^ -~]/g, '')}`, 20, y);
         y += 8;
+        if (y > 270) { doc.addPage(); y = 20; }
       });
     }
     doc.save(`rapport_${fileName}.pdf`);
@@ -182,17 +188,17 @@ function Dashboard({ data, fileName, language, onReset }) {
   </style>
 </head>
 <body>
-  <h1>📊 Smart Excel Analyzer — Rapport</h1>
+  <h1>Smart Excel Analyzer — Rapport</h1>
   <p><strong>Fichier :</strong> ${fileName}</p>
   <p><strong>Date :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
-  <h2>📋 Résumé général</h2>
+  <h2>Résumé général</h2>
   <table>
     <tr><th>Indicateur</th><th>Valeur</th></tr>
     <tr><td>Nombre de lignes</td><td>${data.summary.total_rows}</td></tr>
     <tr><td>Nombre de colonnes</td><td>${data.summary.total_columns}</td></tr>
     <tr><td>Valeurs manquantes</td><td>${data.summary.missing_values}</td></tr>
   </table>
-  <h2>💡 Indicateurs clés</h2>
+  <h2>Indicateurs clés</h2>
   <table>
     <tr><th>Colonne</th><th>Total</th><th>Moyenne</th><th>Min</th><th>Max</th></tr>
     ${data.kpis.map(k => `
@@ -205,13 +211,13 @@ function Dashboard({ data, fileName, language, onReset }) {
     </tr>`).join('')}
   </table>
   ${data.alerts.length > 0 ? `
-  <h2>🚨 Alertes</h2>
-  ${data.alerts.map(a => `<div class="alert">⚠ ${a.message}</div>`).join('')}
+  <h2>Alertes</h2>
+  ${data.alerts.map(a => `<div class="alert">! ${a.message}</div>`).join('')}
   ` : ''}
   ${data.anomalies.length > 0 ? `
-  <h2>🔍 Anomalies</h2>
-  ${data.anomalies.map(a => `<div class="alert">🔍 ${a.message}</div>`).join('')}
-  ` : '<h2>🔍 Anomalies</h2><p>Aucune anomalie détectée ✅</p>'}
+  <h2>Anomalies</h2>
+  ${data.anomalies.map(a => `<div class="alert">! ${a.message}</div>`).join('')}
+  ` : '<h2>Anomalies</h2><p>Aucune anomalie detectee</p>'}
 </body>
 </html>`;
     const blob = new Blob([content], { type: 'application/msword' });
@@ -234,7 +240,7 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       </div>`,
       `<div class="slide">
-        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">📋 Résumé général</h2>
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">Résumé général</h2>
         <div style="display:flex;gap:40px;margin-top:40px;justify-content:center;">
           <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.total_rows}</div><div style="color:#666;font-size:18px;">Lignes</div></div>
           <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.total_columns}</div><div style="color:#666;font-size:18px;">Colonnes</div></div>
@@ -242,7 +248,7 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       </div>`,
       `<div class="slide">
-        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">💡 Indicateurs clés</h2>
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">Indicateurs clés</h2>
         <table style="width:100%;border-collapse:collapse;margin-top:30px;font-size:16px;">
           <tr style="background:#1E3A8A;color:white;">
             <th style="padding:12px;text-align:left;">Colonne</th>
@@ -262,11 +268,11 @@ function Dashboard({ data, fileName, language, onReset }) {
         </table>
       </div>`,
       `<div class="slide">
-        <h2 style="color:#DC2626;border-bottom:3px solid #DC2626;padding-bottom:15px;">🚨 Alertes & Anomalies</h2>
+        <h2 style="color:#DC2626;border-bottom:3px solid #DC2626;padding-bottom:15px;">Alertes & Anomalies</h2>
         <div style="margin-top:30px;">
           ${data.alerts.length > 0
-            ? data.alerts.map(a => `<div style="background:#FEE2E2;border-left:5px solid #DC2626;padding:15px;margin:10px 0;border-radius:8px;font-size:16px;">⚠️ ${a.message}</div>`).join('')
-            : '<div style="background:#DCFCE7;border-left:5px solid #16A34A;padding:15px;border-radius:8px;font-size:16px;">✅ Aucune alerte détectée</div>'
+            ? data.alerts.map(a => `<div style="background:#FEE2E2;border-left:5px solid #DC2626;padding:15px;margin:10px 0;border-radius:8px;font-size:16px;">! ${a.message}</div>`).join('')
+            : '<div style="background:#DCFCE7;border-left:5px solid #16A34A;padding:15px;border-radius:8px;font-size:16px;">Aucune alerte detectee</div>'
           }
         </div>
       </div>`,
@@ -287,7 +293,7 @@ function Dashboard({ data, fileName, language, onReset }) {
 </head>
 <body>
   ${slides.join('')}
-  <div style="text-align:center;padding:20px;color:#666;font-size:14px;">💡 Ouvrez ce fichier dans Chrome et utilisez F11 pour le plein écran</div>
+  <div style="text-align:center;padding:20px;color:#666;font-size:14px;">Ouvrez ce fichier dans Chrome et utilisez F11 pour le plein ecran</div>
 </body>
 </html>`;
 
@@ -300,32 +306,61 @@ function Dashboard({ data, fileName, language, onReset }) {
     URL.revokeObjectURL(url);
   };
 
+  const handleShare = async () => {
+    try {
+      const shareId = Math.random().toString(36).substring(2, 10);
+      const { error } = await supabase
+        .from('shares')
+        .insert([{
+          share_id: shareId,
+          file_name: fileName,
+          analysis_data: data,
+        }]);
+
+      if (!error) {
+        const shareUrl = `${window.location.origin}/share/${shareId}`;
+        await navigator.clipboard.writeText(shareUrl);
+        alert(`Lien copie !\n${shareUrl}\n\nValable 7 jours.`);
+      }
+    } catch (err) {
+      alert('Erreur lors du partage.');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-8">
+
+      {/* Header dashboard */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-primary">Dashboard</h2>
           <p className="text-gray-500 text-sm">{t.file} : <span className="font-semibold text-secondary">{fileName}</span></p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={handleExportPDF} className="bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-red-600 transition">
-            📄 {t.exportPDF}
-          </button>
-          <button onClick={handleExportWord} className="bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-blue-800 transition">
-            📝 {t.exportWord}
-          </button>
-          <button onClick={handleExportPPT} className="bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-orange-600 transition">
-            📊 {t.exportPPT}
-          </button>
-          <button onClick={handlePrint} className="bg-gray-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-gray-700 transition">
-            🖨️ {t.print}
-          </button>
-          <button onClick={onReset} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-secondary transition">
-            + {t.newFile}
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={handleExportPDF} className="bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-red-600 transition">
+              📄 {t.exportPDF}
+            </button>
+            <button onClick={handleExportWord} className="bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-blue-800 transition">
+              📝 {t.exportWord}
+            </button>
+            <button onClick={handleExportPPT} className="bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-orange-600 transition">
+              📊 {t.exportPPT}
+            </button>
+            <button onClick={handleShare} className="bg-green-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-green-600 transition">
+              🔗 {t.share}
+            </button>
+            <button onClick={handlePrint} className="bg-gray-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-gray-700 transition">
+              🖨️ {t.print}
+            </button>
+            <button onClick={onReset} className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-secondary transition">
+              + {t.newFile}
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Alertes */}
       {data.alerts.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="text-lg font-bold text-primary">🚨 {t.alerts}</h3>
@@ -341,6 +376,7 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       )}
 
+      {/* Résumé */}
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">📋 {t.summary}</h3>
         <div className="grid grid-cols-3 gap-4">
@@ -358,6 +394,7 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       </div>
 
+      {/* KPIs */}
       {data.kpis.length > 0 && (
         <div>
           <h3 className="text-lg font-bold text-primary mb-4">💡 {t.kpis}</h3>
@@ -369,6 +406,7 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       )}
 
+      {/* Graphiques */}
       {data.charts.length > 0 && (
         <div>
           <h3 className="text-lg font-bold text-primary mb-4">📈 {t.charts}</h3>
@@ -380,6 +418,7 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       )}
 
+      {/* Anomalies */}
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">🔍 {t.anomalies}</h3>
         {data.anomalies.length === 0 ? (
@@ -396,6 +435,7 @@ function Dashboard({ data, fileName, language, onReset }) {
           </div>
         )}
       </div>
+
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import Dashboard from './Dashboard';
 import Loader from './Loader';
+import Compare from './Compare';
 
 const translations = {
   fr: {
@@ -12,8 +13,6 @@ const translations = {
     analyze: "Analyser",
     delete: "Supprimer",
     compare: "Comparer",
-    selectTwo: "Sélectionnez 2 fichiers à comparer",
-    comparing: "Comparaison en cours...",
   },
   en: {
     back: "Back",
@@ -23,8 +22,6 @@ const translations = {
     analyze: "Analyze",
     delete: "Delete",
     compare: "Compare",
-    selectTwo: "Select 2 files to compare",
-    comparing: "Comparing...",
   }
 };
 
@@ -36,6 +33,8 @@ function WorkspaceDetail({ workspace, language, onBack }) {
   const [currentData, setCurrentData] = useState(null);
   const [currentFile, setCurrentFile] = useState('');
   const [selectedForCompare, setSelectedForCompare] = useState([]);
+  const [compareData, setCompareData] = useState(null);
+  const [comparing, setComparing] = useState(false);
 
   useEffect(() => {
     fetchFiles();
@@ -68,7 +67,6 @@ function WorkspaceDetail({ workspace, language, onBack }) {
       const result = await response.json();
 
       if (result.status === 'success') {
-        // Sauvegarder dans Supabase
         await supabase.from('files').insert([{
           category_id: workspace.id,
           file_name: file.name,
@@ -108,6 +106,61 @@ function WorkspaceDetail({ workspace, language, onBack }) {
     }
   };
 
+  const handleCompare = async () => {
+    if (selectedForCompare.length !== 2) return;
+    setComparing(true);
+    setCompareData(null);
+
+    try {
+      const d1 = selectedForCompare[0].analysis_data;
+      const d2 = selectedForCompare[1].analysis_data;
+
+      const kpis1 = {};
+      const kpis2 = {};
+      d1.kpis.forEach(k => kpis1[k.column] = k);
+      d2.kpis.forEach(k => kpis2[k.column] = k);
+
+      const kpis_comparison = [];
+      for (const col in kpis1) {
+        if (kpis2[col]) {
+          const old_total = kpis1[col].total;
+          const new_total = kpis2[col].total;
+          const change_pct = old_total !== 0
+            ? Math.round(((new_total - old_total) / Math.abs(old_total)) * 10000) / 100
+            : 0;
+          kpis_comparison.push({
+            column: col,
+            file1_total: old_total,
+            file2_total: new_total,
+            change: Math.round((new_total - old_total) * 100) / 100,
+            change_pct,
+            trend: new_total > old_total ? 'up' : new_total < old_total ? 'down' : 'stable'
+          });
+        }
+      }
+
+      setCompareData({
+        file1: selectedForCompare[0].file_name,
+        file2: selectedForCompare[1].file_name,
+        summary: {
+          file1_rows: d1.summary.total_rows,
+          file2_rows: d2.summary.total_rows,
+          rows_diff: d2.summary.total_rows - d1.summary.total_rows,
+        },
+        kpis_comparison,
+        alerts1: d1.alerts || [],
+        alerts2: d2.alerts || [],
+        anomalies1: d1.anomalies || [],
+        anomalies2: d2.anomalies || [],
+      });
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setComparing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
 
@@ -134,7 +187,7 @@ function WorkspaceDetail({ workspace, language, onBack }) {
       </div>
 
       {/* Zone upload */}
-      {!currentData && !analyzing && (
+      {!currentData && !analyzing && !compareData && (
         <div
           className="w-full border-4 border-dashed border-blue-300 rounded-2xl p-10 text-center cursor-pointer hover:border-secondary hover:bg-accent transition"
           onClick={() => document.getElementById('wsFileInput').click()}
@@ -154,6 +207,7 @@ function WorkspaceDetail({ workspace, language, onBack }) {
 
       {analyzing && <Loader language={language} />}
 
+      {/* Dashboard */}
       {currentData && !analyzing && (
         <div>
           <button
@@ -171,23 +225,48 @@ function WorkspaceDetail({ workspace, language, onBack }) {
         </div>
       )}
 
+      {/* Comparaison */}
+      {comparing && <Loader language={language} />}
+
+      {compareData && !comparing && (
+        <div>
+          <Compare
+            data={compareData}
+            language={language}
+            onClose={() => { setCompareData(null); setSelectedForCompare([]); }}
+          />
+        </div>
+      )}
+
       {/* Historique */}
-      {!currentData && !analyzing && (
+      {!currentData && !analyzing && !compareData && (
         <div>
           <h3 className="text-lg font-bold text-primary mb-4">📋 {t.history}</h3>
 
-          {/* Comparaison */}
-          {selectedForCompare.length === 2 && (
+          {selectedForCompare.length > 0 && (
             <div className="bg-accent border border-secondary rounded-2xl p-4 mb-4 flex items-center justify-between">
               <p className="text-primary font-semibold text-sm">
-                🔄 Comparaison : <strong>{selectedForCompare[0].file_name}</strong> vs <strong>{selectedForCompare[1].file_name}</strong>
+                🔄 {selectedForCompare.length === 2
+                  ? <><strong>{selectedForCompare[0].file_name}</strong> vs <strong>{selectedForCompare[1].file_name}</strong></>
+                  : <>Sélectionnez un 2ème fichier à comparer</>
+                }
               </p>
-              <button
-                onClick={() => setSelectedForCompare([])}
-                className="text-gray-400 hover:text-gray-600 text-sm"
-              >
-                ✕ Annuler
-              </button>
+              <div className="flex gap-2">
+                {selectedForCompare.length === 2 && (
+                  <button
+                    onClick={handleCompare}
+                    className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-secondary transition"
+                  >
+                    🔄 {t.compare}
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedForCompare([])}
+                  className="text-gray-400 hover:text-gray-600 text-sm px-2"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )}
 

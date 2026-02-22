@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard';
 import Loader from './components/Loader';
 import Workspaces from './components/Workspaces';
 import WorkspaceDetail from './components/WorkspaceDetail';
+import ShareView from './components/ShareView';
 
 function App() {
   const [data, setData] = useState(null);
@@ -14,8 +15,14 @@ function App() {
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState('');
   const [language, setLanguage] = useState('fr');
-  const [view, setView] = useState('home');
   const [currentWorkspace, setCurrentWorkspace] = useState(null);
+
+  // Détection route partage
+  const path = window.location.pathname;
+  const shareMatch = path.match(/^\/share\/([a-z0-9]+)$/i);
+  const shareId = shareMatch ? shareMatch[1] : null;
+
+  const [view, setView] = useState(shareId ? 'share' : 'home');
 
   const handleFileUpload = async (file) => {
     setLoading(true);
@@ -60,6 +67,11 @@ function App() {
     setView('workspaces');
   };
 
+  // Vue partage
+  if (shareId) {
+    return <ShareView shareId={shareId} language={language} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
@@ -71,22 +83,18 @@ function App() {
       />
       <main className="max-w-7xl mx-auto px-4 py-8">
 
-        {/* Vue Home — Upload rapide */}
         {view === 'home' && !data && !loading && (
           <UploadZone onUpload={handleFileUpload} language={language} />
         )}
 
-        {/* Vue Home — Loading */}
         {view === 'home' && loading && <Loader language={language} />}
 
-        {/* Vue Home — Erreur */}
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mt-4">
             <strong>Erreur : </strong>{error}
           </div>
         )}
 
-        {/* Vue Home — Dashboard */}
         {view === 'home' && data && !loading && (
           <Dashboard
             data={data}
@@ -96,7 +104,6 @@ function App() {
           />
         )}
 
-        {/* Vue Workspaces */}
         {view === 'workspaces' && (
           <Workspaces
             language={language}
@@ -104,7 +111,6 @@ function App() {
           />
         )}
 
-        {/* Vue Workspace Detail */}
         {view === 'workspace' && currentWorkspace && (
           <WorkspaceDetail
             workspace={currentWorkspace}
