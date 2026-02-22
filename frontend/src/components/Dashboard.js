@@ -165,10 +165,143 @@ function Dashboard({ data, fileName, language, onReset }) {
     doc.save(`rapport_${fileName}.pdf`);
   };
 
+  const handleExportWord = () => {
+    const content = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+    h1 { color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; }
+    h2 { color: #1E3A8A; margin-top: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th { background: #1E3A8A; color: white; padding: 8px; text-align: left; }
+    td { padding: 8px; border-bottom: 1px solid #ddd; }
+    .alert { background: #FEE2E2; color: #DC2626; padding: 10px; border-radius: 5px; margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>📊 Smart Excel Analyzer — Rapport</h1>
+  <p><strong>Fichier :</strong> ${fileName}</p>
+  <p><strong>Date :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
+  <h2>📋 Résumé général</h2>
+  <table>
+    <tr><th>Indicateur</th><th>Valeur</th></tr>
+    <tr><td>Nombre de lignes</td><td>${data.summary.total_rows}</td></tr>
+    <tr><td>Nombre de colonnes</td><td>${data.summary.total_columns}</td></tr>
+    <tr><td>Valeurs manquantes</td><td>${data.summary.missing_values}</td></tr>
+  </table>
+  <h2>💡 Indicateurs clés</h2>
+  <table>
+    <tr><th>Colonne</th><th>Total</th><th>Moyenne</th><th>Min</th><th>Max</th></tr>
+    ${data.kpis.map(k => `
+    <tr>
+      <td>${k.column}</td>
+      <td>${k.total.toLocaleString()}</td>
+      <td>${k.average.toLocaleString()}</td>
+      <td>${k.min.toLocaleString()}</td>
+      <td>${k.max.toLocaleString()}</td>
+    </tr>`).join('')}
+  </table>
+  ${data.alerts.length > 0 ? `
+  <h2>🚨 Alertes</h2>
+  ${data.alerts.map(a => `<div class="alert">⚠ ${a.message}</div>`).join('')}
+  ` : ''}
+  ${data.anomalies.length > 0 ? `
+  <h2>🔍 Anomalies</h2>
+  ${data.anomalies.map(a => `<div class="alert">🔍 ${a.message}</div>`).join('')}
+  ` : '<h2>🔍 Anomalies</h2><p>Aucune anomalie détectée ✅</p>'}
+</body>
+</html>`;
+    const blob = new Blob([content], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rapport_${fileName}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPPT = () => {
+    const slides = [
+      `<div class="slide" style="background:#1E3A8A;">
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+          <div style="font-size:60px;">📊</div>
+          <h1 style="color:white;font-size:40px;margin:20px 0;">Smart Excel Analyzer</h1>
+          <p style="color:#DBEAFE;font-size:22px;">Rapport — ${fileName}</p>
+          <p style="color:#93C5FD;font-size:16px;">${new Date().toLocaleDateString('fr-FR')}</p>
+        </div>
+      </div>`,
+      `<div class="slide">
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">📋 Résumé général</h2>
+        <div style="display:flex;gap:40px;margin-top:40px;justify-content:center;">
+          <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.total_rows}</div><div style="color:#666;font-size:18px;">Lignes</div></div>
+          <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.total_columns}</div><div style="color:#666;font-size:18px;">Colonnes</div></div>
+          <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.missing_values}</div><div style="color:#666;font-size:18px;">Valeurs manquantes</div></div>
+        </div>
+      </div>`,
+      `<div class="slide">
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">💡 Indicateurs clés</h2>
+        <table style="width:100%;border-collapse:collapse;margin-top:30px;font-size:16px;">
+          <tr style="background:#1E3A8A;color:white;">
+            <th style="padding:12px;text-align:left;">Colonne</th>
+            <th style="padding:12px;">Total</th>
+            <th style="padding:12px;">Moyenne</th>
+            <th style="padding:12px;">Min</th>
+            <th style="padding:12px;">Max</th>
+          </tr>
+          ${data.kpis.map((k, i) => `
+          <tr style="background:${i % 2 === 0 ? '#DBEAFE' : 'white'};">
+            <td style="padding:12px;font-weight:bold;">${k.column}</td>
+            <td style="padding:12px;text-align:center;">${k.total.toLocaleString()}</td>
+            <td style="padding:12px;text-align:center;">${k.average.toLocaleString()}</td>
+            <td style="padding:12px;text-align:center;">${k.min.toLocaleString()}</td>
+            <td style="padding:12px;text-align:center;">${k.max.toLocaleString()}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`,
+      `<div class="slide">
+        <h2 style="color:#DC2626;border-bottom:3px solid #DC2626;padding-bottom:15px;">🚨 Alertes & Anomalies</h2>
+        <div style="margin-top:30px;">
+          ${data.alerts.length > 0
+            ? data.alerts.map(a => `<div style="background:#FEE2E2;border-left:5px solid #DC2626;padding:15px;margin:10px 0;border-radius:8px;font-size:16px;">⚠️ ${a.message}</div>`).join('')
+            : '<div style="background:#DCFCE7;border-left:5px solid #16A34A;padding:15px;border-radius:8px;font-size:16px;">✅ Aucune alerte détectée</div>'
+          }
+        </div>
+      </div>`,
+    ];
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Présentation — ${fileName}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; background:#111; }
+    .slide { width:1280px; height:720px; background:white; padding:60px; margin:20px auto; border-radius:12px; position:relative; box-shadow:0 10px 40px rgba(0,0,0,0.3); page-break-after:always; }
+    .kpi-card { background:#DBEAFE; border-radius:16px; padding:30px 50px; text-align:center; min-width:200px; }
+    @media print { body { background:white; } .slide { margin:0; border-radius:0; box-shadow:none; } }
+  </style>
+</head>
+<body>
+  ${slides.join('')}
+  <div style="text-align:center;padding:20px;color:#666;font-size:14px;">💡 Ouvrez ce fichier dans Chrome et utilisez F11 pour le plein écran</div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `presentation_${fileName}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col gap-8">
-
-      {/* Header dashboard */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-primary">Dashboard</h2>
@@ -177,6 +310,12 @@ function Dashboard({ data, fileName, language, onReset }) {
         <div className="flex flex-wrap gap-2">
           <button onClick={handleExportPDF} className="bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-red-600 transition">
             📄 {t.exportPDF}
+          </button>
+          <button onClick={handleExportWord} className="bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-blue-800 transition">
+            📝 {t.exportWord}
+          </button>
+          <button onClick={handleExportPPT} className="bg-orange-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-orange-600 transition">
+            📊 {t.exportPPT}
           </button>
           <button onClick={handlePrint} className="bg-gray-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-gray-700 transition">
             🖨️ {t.print}
@@ -187,7 +326,6 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       </div>
 
-      {/* Alertes */}
       {data.alerts.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="text-lg font-bold text-primary">🚨 {t.alerts}</h3>
@@ -203,7 +341,6 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       )}
 
-      {/* Résumé */}
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">📋 {t.summary}</h3>
         <div className="grid grid-cols-3 gap-4">
@@ -221,7 +358,6 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       </div>
 
-      {/* KPIs */}
       {data.kpis.length > 0 && (
         <div>
           <h3 className="text-lg font-bold text-primary mb-4">💡 {t.kpis}</h3>
@@ -233,7 +369,6 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       )}
 
-      {/* Graphiques */}
       {data.charts.length > 0 && (
         <div>
           <h3 className="text-lg font-bold text-primary mb-4">📈 {t.charts}</h3>
@@ -245,7 +380,6 @@ function Dashboard({ data, fileName, language, onReset }) {
         </div>
       )}
 
-      {/* Anomalies */}
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">🔍 {t.anomalies}</h3>
         {data.anomalies.length === 0 ? (
@@ -262,7 +396,6 @@ function Dashboard({ data, fileName, language, onReset }) {
           </div>
         )}
       </div>
-
     </div>
   );
 }
