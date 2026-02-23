@@ -194,9 +194,7 @@ function ChartCard({ chart }) {
 function AIInsightsBlock({ ai }) {
   if (!ai) return null;
 
-  const scoreColor = ai.score_sante >= 80 ? '#16A34A' : ai.score_sante >= 60 ? '#D97706' : '#DC2626';
-  const scoreLabel = ai.score_sante >= 80 ? '🟢 Excellent' : ai.score_sante >= 60 ? '🟡 Moyen' : '🔴 Faible';
-
+  
   return (
     <div className="flex flex-col gap-6">
 
