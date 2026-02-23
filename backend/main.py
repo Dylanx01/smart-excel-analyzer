@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 import json
+import openpyxl
 
 app = FastAPI(title="Smart Excel Analyzer API")
 
@@ -15,9 +16,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def unmerge_and_fill(file_bytes):
+    """Détecte et remplit les cellules fusionnées avant analyse"""
+    wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
+    ws = wb.active
+
+    # Sauvegarder les plages fusionnées
+    merged_ranges = list(ws.merged_cells.ranges)
+
+    for merge_range in merged_ranges:
+        # Récupérer la valeur de la cellule principale (haut gauche)
+        min_row = merge_range.min_row
+        min_col = merge_range.min_col
+        top_left_value = ws.cell(row=min_row, column=min_col).value
+
+        # Défusionner
+        ws.unmerge_cells(str(merge_range))
+
+        # Remplir toutes les cellules avec la valeur de la cellule principale
+        for row in range(merge_range.min_row, merge_range.max_row + 1):
+            for col in range(merge_range.min_col, merge_range.max_col + 1):
+                ws.cell(row=row, column=col).value = top_left_value
+
+    # Sauvegarder dans un buffer
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
 def detect_column_type(series):
     """Détecte automatiquement le type de chaque colonne"""
-    # Essai conversion numérique d'abord
     try:
         numeric = pd.to_numeric(series.dropna(), errors='raise')
         unique_vals = numeric.unique()
@@ -27,14 +55,12 @@ def detect_column_type(series):
     except:
         pass
 
-    # Essai date
     try:
         pd.to_datetime(series.dropna(), infer_datetime_format=True)
         return "date"
     except:
         pass
 
-    # Booléen texte
     unique_lower = series.dropna().astype(str).str.lower().unique()
     bool_keywords = {"oui","non","yes","no","true","false","présent","absent","actif","inactif"}
     if set(unique_lower).issubset(bool_keywords):
@@ -61,7 +87,6 @@ def analyze_excel(df):
         "columns_list": list(df.columns)
     }
 
-    # Analyse par colonne
     date_cols = []
     number_cols = []
     category_cols = []
@@ -69,14 +94,12 @@ def analyze_excel(df):
 
     for col in df.columns:
         series = df[col]
-        
-        # Priorité 1 : date
+
         if pd.api.types.is_datetime64_any_dtype(series):
             date_cols.append(col)
             result["columns"][col] = "date"
             continue
 
-        # Priorité 2 : booléen texte
         unique_lower = series.dropna().astype(str).str.lower().unique()
         bool_keywords = {"oui","non","yes","no","true","false","présent","absent","actif","inactif"}
         if set(unique_lower).issubset(bool_keywords):
@@ -84,13 +107,11 @@ def analyze_excel(df):
             result["columns"][col] = "boolean"
             continue
 
-        # Priorité 3 : numérique
         if pd.api.types.is_numeric_dtype(series):
             number_cols.append(col)
             result["columns"][col] = "number"
             continue
 
-        # Priorité 4 : catégorie
         category_cols.append(col)
         result["columns"][col] = "category"
 
@@ -183,7 +204,23 @@ def root():
 async def analyze(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-        df = pd.read_excel(BytesIO(contents))
+
+        # Traitement cellules fusionnées
+        try:
+            cleaned_buffer = unmerge_and_fill(contents)
+            df = pd.read_excel(cleaned_buffer)
+        except Exception:
+            # Fallback si openpyxl échoue
+            df = pd.read_excel(BytesIO(contents))
+
+        # Nettoyage colonnes Unnamed
+        df = df.loc[:, ~df.columns.astype(str).str.startswith('Unnamed')]
+
+        # Remplissage forward fill pour colonnes catégories fusionnées
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].fillna(method='ffill')
+
         result = analyze_excel(df)
         return {"status": "success", "data": result}
     except Exception as e:
