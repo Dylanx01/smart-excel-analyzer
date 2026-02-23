@@ -33,7 +33,6 @@ const translations = {
     print: "Imprimer",
     share: "Partager",
     file: "Fichier analysé",
-    insight: "Analyse intelligente",
     dataQuality: "Qualité des données",
   },
   en: {
@@ -59,101 +58,11 @@ const translations = {
     print: "Print",
     share: "Share",
     file: "Analyzed file",
-    insight: "Smart Analysis",
     dataQuality: "Data Quality",
   }
 };
 
 const COLORS = ['#1E3A8A', '#3B82F6', '#60A5FA', '#93C5FD', '#6366F1', '#8B5CF6', '#EC4899', '#F59E0B'];
-
-function generateInsight(data, language) {
-  const fr = language === 'fr';
-  const insights = [];
-
-  if (data.kpis.length > 0) {
-    const topKpi = data.kpis[0];
-    insights.push(fr
-      ? `📊 Votre fichier contient ${data.summary.total_rows} enregistrements avec ${data.kpis.length} indicateur(s) numérique(s) analysé(s).`
-      : `📊 Your file contains ${data.summary.total_rows} records with ${data.kpis.length} numeric indicator(s) analyzed.`
-    );
-    insights.push(fr
-      ? `💡 L'indicateur principal "${topKpi.column}" affiche un total de ${topKpi.total.toLocaleString()} avec une moyenne de ${topKpi.average.toLocaleString()}.`
-      : `💡 The main indicator "${topKpi.column}" shows a total of ${topKpi.total.toLocaleString()} with an average of ${topKpi.average.toLocaleString()}.`
-    );
-  }
-
-  if (data.alerts.length > 0) {
-    insights.push(fr
-      ? `🚨 ${data.alerts.length} alerte(s) détectée(s) — une attention immédiate est recommandée.`
-      : `🚨 ${data.alerts.length} alert(s) detected — immediate attention is recommended.`
-    );
-  } else {
-    insights.push(fr
-      ? `✅ Aucune alerte critique — vos données semblent stables.`
-      : `✅ No critical alerts — your data appears stable.`
-    );
-  }
-
-  if (data.summary.missing_values > 0) {
-    insights.push(fr
-      ? `⚠️ ${data.summary.missing_values} valeur(s) manquante(s) détectée(s) — pensez à compléter vos données.`
-      : `⚠️ ${data.summary.missing_values} missing value(s) detected — consider completing your data.`
-    );
-  }
-
-  return insights;
-}
-
-function DataQualityScore({ data }) {
-  let score = 100;
-  if (data.summary.missing_values > 0) score -= Math.min(30, data.summary.missing_values * 2);
-  if (data.alerts.length > 0) score -= data.alerts.length * 10;
-  if (data.anomalies.length > 0) score -= data.anomalies.length * 5;
-  score = Math.max(0, score);
-
-  const color = score >= 80 ? '#16A34A' : score >= 60 ? '#D97706' : '#DC2626';
-  const label = score >= 80 ? '🟢 Excellent' : score >= 60 ? '🟡 Moyen' : '🔴 Faible';
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition">
-      <h3 className="font-bold text-primary mb-4">📈 Qualité des données</h3>
-      <div className="flex items-center gap-4">
-        <div className="relative w-20 h-20 flex-shrink-0">
-          <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f0f0f0" strokeWidth="3" />
-            <circle
-              cx="18" cy="18" r="15.9" fill="none"
-              stroke={color} strokeWidth="3"
-              strokeDasharray={`${score} 100`}
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-lg font-black" style={{ color }}>{score}</span>
-          </div>
-        </div>
-        <div>
-          <p className="font-bold text-gray-700">{label}</p>
-          <p className="text-gray-400 text-sm mt-1">Score sur 100</p>
-          <div className="flex flex-col gap-1 mt-2">
-            {data.summary.missing_values > 0 && (
-              <p className="text-xs text-orange-500">⚠️ {data.summary.missing_values} valeur(s) manquante(s)</p>
-            )}
-            {data.alerts.length > 0 && (
-              <p className="text-xs text-red-500">🚨 {data.alerts.length} alerte(s)</p>
-            )}
-            {data.anomalies.length > 0 && (
-              <p className="text-xs text-orange-500">🔍 {data.anomalies.length} anomalie(s)</p>
-            )}
-            {data.summary.missing_values === 0 && data.alerts.length === 0 && data.anomalies.length === 0 && (
-              <p className="text-xs text-green-500">✅ Données parfaites</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function KPICard({ kpi, t }) {
   const range = kpi.max - kpi.min;
@@ -282,9 +191,190 @@ function ChartCard({ chart }) {
   );
 }
 
+function AIInsightsBlock({ ai }) {
+  if (!ai) return null;
+
+  const scoreColor = ai.score_sante >= 80 ? '#16A34A' : ai.score_sante >= 60 ? '#D97706' : '#DC2626';
+  const scoreLabel = ai.score_sante >= 80 ? '🟢 Excellent' : ai.score_sante >= 60 ? '🟡 Moyen' : '🔴 Faible';
+
+  return (
+    <div className="flex flex-col gap-6">
+
+      {/* Header IA */}
+      <div className="bg-gradient-to-r from-primary to-secondary rounded-2xl p-6 text-white">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">✨</span>
+              <h3 className="font-black text-xl">Analyse IA — {ai.domaine}</h3>
+            </div>
+            <p className="text-blue-100 text-sm leading-relaxed mb-3">{ai.contexte}</p>
+            <p className="text-white text-sm leading-relaxed font-medium">{ai.resume_executif}</p>
+          </div>
+          <div className="bg-white bg-opacity-20 rounded-2xl p-4 text-center flex-shrink-0">
+            <div className="relative w-16 h-16 mx-auto mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15.9" fill="none"
+                  stroke="white" strokeWidth="3"
+                  strokeDasharray={`${ai.score_sante} 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-white font-black text-lg">{ai.score_sante}</span>
+              </div>
+            </div>
+            <p className="text-blue-100 text-xs font-bold">Score santé</p>
+            {ai.score_explication && (
+              <p className="text-blue-200 text-xs mt-1 max-w-24">{ai.score_explication}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Insights */}
+      {ai.insights && ai.insights.length > 0 && (
+        <div>
+          <h3 className="text-lg font-black text-primary mb-4">💡 Insights intelligents</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {ai.insights.map((insight, i) => (
+              <div
+                key={i}
+                className={`bg-white rounded-2xl border shadow-sm p-5 hover:shadow-md transition ${
+                  insight.priorite === 'haute' ? 'border-red-200' :
+                  insight.priorite === 'moyenne' ? 'border-orange-200' :
+                  'border-green-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">{insight.icone}</span>
+                  <h4 className="font-bold text-primary text-sm flex-1">{insight.titre}</h4>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    insight.priorite === 'haute' ? 'bg-red-50 text-red-500' :
+                    insight.priorite === 'moyenne' ? 'bg-orange-50 text-orange-500' :
+                    'bg-green-50 text-green-500'
+                  }`}>
+                    {insight.priorite}
+                  </span>
+                </div>
+                <p className="text-gray-500 text-xs mb-3 leading-relaxed">{insight.observation}</p>
+                <div className="bg-accent rounded-xl p-3">
+                  <p className="text-secondary text-xs font-bold mb-1">💡 Conseil</p>
+                  <p className="text-gray-600 text-xs leading-relaxed">{insight.conseil}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Points forts / faibles / opportunités / risques */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {ai.points_forts && ai.points_forts.length > 0 && (
+          <div className="bg-white rounded-2xl border border-green-100 shadow-sm p-5">
+            <h3 className="font-bold text-green-600 mb-3 flex items-center gap-2">
+              <span>✅</span> Points forts
+            </h3>
+            <div className="flex flex-col gap-2">
+              {ai.points_forts.map((point, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-green-500 text-sm mt-0.5 flex-shrink-0">→</span>
+                  <p className="text-gray-600 text-sm">{point}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ai.points_faibles && ai.points_faibles.length > 0 && (
+          <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-5">
+            <h3 className="font-bold text-red-500 mb-3 flex items-center gap-2">
+              <span>⚠️</span> Points faibles
+            </h3>
+            <div className="flex flex-col gap-2">
+              {ai.points_faibles.map((point, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-red-400 text-sm mt-0.5 flex-shrink-0">→</span>
+                  <p className="text-gray-600 text-sm">{point}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ai.opportunites && ai.opportunites.length > 0 && (
+          <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-5">
+            <h3 className="font-bold text-blue-500 mb-3 flex items-center gap-2">
+              <span>🚀</span> Opportunités
+            </h3>
+            <div className="flex flex-col gap-2">
+              {ai.opportunites.map((opp, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-blue-400 text-sm mt-0.5 flex-shrink-0">→</span>
+                  <p className="text-gray-600 text-sm">{opp}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ai.risques && ai.risques.length > 0 && (
+          <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
+            <h3 className="font-bold text-orange-500 mb-3 flex items-center gap-2">
+              <span>🔺</span> Risques
+            </h3>
+            <div className="flex flex-col gap-2">
+              {ai.risques.map((risque, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-orange-400 text-sm mt-0.5 flex-shrink-0">→</span>
+                  <p className="text-gray-600 text-sm">{risque}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Plan d'action */}
+      {ai.plan_action && ai.plan_action.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h3 className="font-black text-primary text-lg mb-4">📋 Plan d'action prioritaire</h3>
+          <div className="flex flex-col gap-3">
+            {ai.plan_action.map((action, i) => (
+              <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-accent transition">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0 ${
+                  action.priorite === 1 ? 'bg-red-500' :
+                  action.priorite === 2 ? 'bg-orange-500' :
+                  'bg-blue-500'
+                }`}>
+                  {action.priorite}
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-primary text-sm mb-1">{action.action}</p>
+                  <div className="flex flex-wrap gap-3">
+                    <p className="text-gray-400 text-xs">⏱️ {action.delai}</p>
+                    {action.responsable && <p className="text-gray-400 text-xs">👤 {action.responsable}</p>}
+                    <p className="text-gray-400 text-xs">💥 {action.impact}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Conclusion */}
+      {ai.conclusion && (
+        <div className="bg-accent rounded-2xl border border-blue-100 p-5 text-center">
+          <p className="text-secondary font-bold text-sm">🎯 {ai.conclusion}</p>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 function Dashboard({ data, fileName, language, onReset, readOnly }) {
   const t = translations[language];
-  const insights = generateInsight(data, language);
   const toast = useToast();
 
   const handlePrint = () => window.print();
@@ -299,43 +389,70 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
     doc.text(`Fichier : ${fileName}`, 20, 35);
     doc.text(`Lignes : ${data.summary.total_rows}`, 20, 45);
     doc.text(`Colonnes : ${data.summary.total_columns}`, 20, 55);
-    doc.text(`Valeurs manquantes : ${data.summary.missing_values}`, 20, 65);
-    let y = 80;
-    doc.setFontSize(14);
-    doc.setTextColor(30, 58, 138);
-    doc.text('Indicateurs cles :', 20, y);
-    y += 10;
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    data.kpis.forEach(kpi => {
-      const line = `${kpi.column} - Total: ${kpi.total} | Moyenne: ${kpi.average} | Min: ${kpi.min} | Max: ${kpi.max}`;
-      doc.text(line, 20, y);
-      y += 8;
-      if (y > 270) { doc.addPage(); y = 20; }
-    });
-    if (data.alerts.length > 0) {
-      y += 5;
+
+    let y = 70;
+
+    if (data.ai_insights) {
       doc.setFontSize(14);
-      doc.setTextColor(220, 38, 38);
-      doc.text('Alertes :', 20, y);
-      y += 10;
+      doc.setTextColor(30, 58, 138);
+      doc.text(`Domaine : ${data.ai_insights.domaine}`, 20, y); y += 10;
       doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
-      data.alerts.forEach(alert => {
-        doc.text(`! ${alert.message.replace(/[^ -~]/g, '')}`, 20, y);
+      doc.text(`Score santé : ${data.ai_insights.score_sante}/100`, 20, y); y += 10;
+
+      const resume = doc.splitTextToSize(data.ai_insights.resume_executif || '', 170);
+      doc.text(resume, 20, y); y += resume.length * 7 + 5;
+
+      if (data.ai_insights.insights && data.ai_insights.insights.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(30, 58, 138);
+        doc.text('Insights IA :', 20, y); y += 10;
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        data.ai_insights.insights.forEach(insight => {
+          if (y > 260) { doc.addPage(); y = 20; }
+          const lines = doc.splitTextToSize(`• ${insight.titre}: ${insight.observation}`, 170);
+          doc.text(lines, 20, y); y += lines.length * 6 + 4;
+        });
+      }
+
+      if (data.ai_insights.plan_action && data.ai_insights.plan_action.length > 0) {
+        if (y > 240) { doc.addPage(); y = 20; }
+        doc.setFontSize(14);
+        doc.setTextColor(30, 58, 138);
+        doc.text('Plan d\'action :', 20, y); y += 10;
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        data.ai_insights.plan_action.forEach(action => {
+          if (y > 260) { doc.addPage(); y = 20; }
+          const lines = doc.splitTextToSize(`${action.priorite}. ${action.action} (${action.delai})`, 170);
+          doc.text(lines, 20, y); y += lines.length * 6 + 4;
+        });
+      }
+    }
+
+    if (data.kpis.length > 0) {
+      if (y > 240) { doc.addPage(); y = 20; }
+      doc.setFontSize(14);
+      doc.setTextColor(30, 58, 138);
+      doc.text('Indicateurs clés :', 20, y); y += 10;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      data.kpis.forEach(kpi => {
+        if (y > 260) { doc.addPage(); y = 20; }
+        doc.text(`${kpi.column} — Total: ${kpi.total} | Moy: ${kpi.average} | Min: ${kpi.min} | Max: ${kpi.max}`, 20, y);
         y += 8;
-        if (y > 270) { doc.addPage(); y = 20; }
       });
     }
+
     doc.save(`rapport_${fileName}.pdf`);
   };
 
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // Feuille 1 — Résumé
     const resumeData = [
-      ['Smart Excel Analyzer — Rapport'],
+      ['Smart Excel Analyzer — Rapport IA'],
       ['Fichier analysé', fileName],
       ['Date', new Date().toLocaleDateString('fr-FR')],
       [],
@@ -344,35 +461,48 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
       ['Nombre de colonnes', data.summary.total_columns],
       ['Valeurs manquantes', data.summary.missing_values],
     ];
+
+    if (data.ai_insights) {
+      resumeData.push([]);
+      resumeData.push(['ANALYSE IA']);
+      resumeData.push(['Domaine', data.ai_insights.domaine]);
+      resumeData.push(['Score santé', `${data.ai_insights.score_sante}/100`]);
+      resumeData.push(['Résumé', data.ai_insights.resume_executif]);
+    }
+
     const wsResume = XLSX.utils.aoa_to_sheet(resumeData);
-    wsResume['!cols'] = [{ wch: 30 }, { wch: 20 }];
+    wsResume['!cols'] = [{ wch: 30 }, { wch: 50 }];
     XLSX.utils.book_append_sheet(wb, wsResume, 'Resume');
 
-    // Feuille 2 — KPIs
-    const kpiHeaders = ['Indicateur', 'Total', 'Moyenne', 'Min', 'Max', 'Nb lignes'];
-    const kpiRows = data.kpis.map(k => [
-      k.column, k.total, k.average, k.min, k.max, k.count
-    ]);
-    const wsKpis = XLSX.utils.aoa_to_sheet([kpiHeaders, ...kpiRows]);
-    wsKpis['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }];
-    XLSX.utils.book_append_sheet(wb, wsKpis, 'Indicateurs');
+    if (data.kpis.length > 0) {
+      const kpiHeaders = ['Indicateur', 'Total', 'Moyenne', 'Min', 'Max', 'Nb lignes'];
+      const kpiRows = data.kpis.map(k => [k.column, k.total, k.average, k.min, k.max, k.count]);
+      const wsKpis = XLSX.utils.aoa_to_sheet([kpiHeaders, ...kpiRows]);
+      wsKpis['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, wsKpis, 'Indicateurs');
+    }
 
-    // Feuille 3 — Alertes
+    if (data.ai_insights && data.ai_insights.insights && data.ai_insights.insights.length > 0) {
+      const insightHeaders = ['Titre', 'Observation', 'Conseil', 'Priorité'];
+      const insightRows = data.ai_insights.insights.map(i => [i.titre, i.observation, i.conseil, i.priorite]);
+      const wsInsights = XLSX.utils.aoa_to_sheet([insightHeaders, ...insightRows]);
+      wsInsights['!cols'] = [{ wch: 25 }, { wch: 40 }, { wch: 40 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, wsInsights, 'Insights IA');
+    }
+
+    if (data.ai_insights && data.ai_insights.plan_action && data.ai_insights.plan_action.length > 0) {
+      const planHeaders = ['Priorité', 'Action', 'Délai', 'Responsable', 'Impact'];
+      const planRows = data.ai_insights.plan_action.map(a => [a.priorite, a.action, a.delai, a.responsable || '', a.impact]);
+      const wsPlan = XLSX.utils.aoa_to_sheet([planHeaders, ...planRows]);
+      wsPlan['!cols'] = [{ wch: 10 }, { wch: 40 }, { wch: 15 }, { wch: 20 }, { wch: 30 }];
+      XLSX.utils.book_append_sheet(wb, wsPlan, 'Plan action');
+    }
+
     if (data.alerts.length > 0) {
       const alertHeaders = ['Type', 'Message'];
       const alertRows = data.alerts.map(a => [a.type, a.message]);
       const wsAlerts = XLSX.utils.aoa_to_sheet([alertHeaders, ...alertRows]);
-      wsAlerts['!cols'] = [{ wch: 15 }, { wch: 60 }];
       XLSX.utils.book_append_sheet(wb, wsAlerts, 'Alertes');
-    }
-
-    // Feuille 4 — Anomalies
-    if (data.anomalies.length > 0) {
-      const anomHeaders = ['Message'];
-      const anomRows = data.anomalies.map(a => [a.message]);
-      const wsAnom = XLSX.utils.aoa_to_sheet([anomHeaders, ...anomRows]);
-      wsAnom['!cols'] = [{ wch: 60 }];
-      XLSX.utils.book_append_sheet(wb, wsAnom, 'Anomalies');
     }
 
     XLSX.writeFile(wb, `rapport_${fileName}.xlsx`);
@@ -380,8 +510,8 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
   };
 
   const handleExportWord = () => {
-    const content = `
-<!DOCTYPE html>
+    const ai = data.ai_insights;
+    const content = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -389,24 +519,57 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
     body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
     h1 { color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; }
     h2 { color: #1E3A8A; margin-top: 30px; }
+    h3 { color: #3B82F6; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th { background: #1E3A8A; color: white; padding: 8px; text-align: left; }
     td { padding: 8px; border-bottom: 1px solid #ddd; }
+    .score { background: #EFF6FF; border-radius: 8px; padding: 15px; display: inline-block; }
+    .insight { background: #f8f9fa; border-left: 4px solid #3B82F6; padding: 12px; margin: 8px 0; border-radius: 4px; }
+    .action { background: #f0fdf4; padding: 10px; margin: 6px 0; border-radius: 4px; }
     .alert { background: #FEE2E2; color: #DC2626; padding: 10px; border-radius: 5px; margin: 5px 0; }
   </style>
 </head>
 <body>
-  <h1>Smart Excel Analyzer - Rapport</h1>
+  <h1>📊 Smart Excel Analyzer — Rapport IA</h1>
   <p><strong>Fichier :</strong> ${fileName}</p>
   <p><strong>Date :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
-  <h2>Resume general</h2>
-  <table>
-    <tr><th>Indicateur</th><th>Valeur</th></tr>
-    <tr><td>Nombre de lignes</td><td>${data.summary.total_rows}</td></tr>
-    <tr><td>Nombre de colonnes</td><td>${data.summary.total_columns}</td></tr>
-    <tr><td>Valeurs manquantes</td><td>${data.summary.missing_values}</td></tr>
-  </table>
-  <h2>Indicateurs cles</h2>
+
+  ${ai ? `
+  <h2>✨ Analyse Intelligente — ${ai.domaine}</h2>
+  <div class="score"><strong>Score santé : ${ai.score_sante}/100</strong><br>${ai.score_explication || ''}</div>
+  <p>${ai.resume_executif}</p>
+
+  ${ai.insights && ai.insights.length > 0 ? `
+  <h2>💡 Insights</h2>
+  ${ai.insights.map(i => `
+    <div class="insight">
+      <strong>${i.icone} ${i.titre}</strong> [${i.priorite}]<br>
+      <em>${i.observation}</em><br>
+      <strong>Conseil :</strong> ${i.conseil}
+    </div>
+  `).join('')}` : ''}
+
+  ${ai.points_forts && ai.points_forts.length > 0 ? `
+  <h2>✅ Points forts</h2>
+  <ul>${ai.points_forts.map(p => `<li>${p}</li>`).join('')}</ul>` : ''}
+
+  ${ai.points_faibles && ai.points_faibles.length > 0 ? `
+  <h2>⚠️ Points faibles</h2>
+  <ul>${ai.points_faibles.map(p => `<li>${p}</li>`).join('')}</ul>` : ''}
+
+  ${ai.plan_action && ai.plan_action.length > 0 ? `
+  <h2>📋 Plan d'action</h2>
+  ${ai.plan_action.map(a => `
+    <div class="action">
+      <strong>${a.priorite}. ${a.action}</strong><br>
+      ⏱️ ${a.delai} | 👤 ${a.responsable || ''} | 💥 ${a.impact}
+    </div>
+  `).join('')}` : ''}
+
+  ${ai.conclusion ? `<h2>🎯 Conclusion</h2><p>${ai.conclusion}</p>` : ''}
+  ` : ''}
+
+  <h2>📊 Indicateurs clés</h2>
   <table>
     <tr><th>Colonne</th><th>Total</th><th>Moyenne</th><th>Min</th><th>Max</th></tr>
     ${data.kpis.map(k => `
@@ -418,12 +581,14 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
       <td>${k.max.toLocaleString()}</td>
     </tr>`).join('')}
   </table>
+
   ${data.alerts.length > 0 ? `
-  <h2>Alertes</h2>
+  <h2>🚨 Alertes</h2>
   ${data.alerts.map(a => `<div class="alert">! ${a.message}</div>`).join('')}
   ` : ''}
 </body>
 </html>`;
+
     const blob = new Blob([content], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -434,26 +599,59 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
   };
 
   const handleExportPPT = () => {
+    const ai = data.ai_insights;
     const slides = [
       `<div class="slide" style="background:#1E3A8A;">
         <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
           <div style="font-size:60px;">📊</div>
           <h1 style="color:white;font-size:40px;margin:20px 0;">Smart Excel Analyzer</h1>
-          <p style="color:#DBEAFE;font-size:22px;">Rapport - ${fileName}</p>
+          <p style="color:#DBEAFE;font-size:22px;">${ai ? ai.domaine : 'Rapport'} — ${fileName}</p>
           <p style="color:#93C5FD;font-size:16px;">${new Date().toLocaleDateString('fr-FR')}</p>
         </div>
       </div>`,
-      `<div class="slide">
-        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">Resume general</h2>
-        <div style="display:flex;gap:40px;margin-top:40px;justify-content:center;">
-          <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.total_rows}</div><div style="color:#666;font-size:18px;">Lignes</div></div>
-          <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.total_columns}</div><div style="color:#666;font-size:18px;">Colonnes</div></div>
-          <div class="kpi-card"><div style="font-size:50px;font-weight:bold;color:#1E3A8A;">${data.summary.missing_values}</div><div style="color:#666;font-size:18px;">Valeurs manquantes</div></div>
+
+      ai ? `<div class="slide">
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">✨ Analyse IA</h2>
+        <div style="display:flex;gap:30px;margin-top:30px;align-items:flex-start;">
+          <div style="flex:1;">
+            <p style="font-size:18px;color:#374151;line-height:1.6;">${ai.resume_executif}</p>
+            ${ai.conclusion ? `<p style="margin-top:20px;color:#3B82F6;font-weight:bold;font-size:16px;">🎯 ${ai.conclusion}</p>` : ''}
+          </div>
+          <div style="background:#EFF6FF;border-radius:16px;padding:30px;text-align:center;min-width:160px;">
+            <div style="font-size:48px;font-weight:bold;color:#1E3A8A;">${ai.score_sante}</div>
+            <div style="color:#6B7280;font-size:16px;">Score santé /100</div>
+          </div>
         </div>
-      </div>`,
-      `<div class="slide">
-        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">Indicateurs cles</h2>
-        <table style="width:100%;border-collapse:collapse;margin-top:30px;font-size:16px;">
+      </div>` : '',
+
+      ai && ai.insights && ai.insights.length > 0 ? `<div class="slide">
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">💡 Insights clés</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:30px;">
+          ${ai.insights.slice(0, 4).map(ins => `
+          <div style="background:#f8f9fa;border-left:4px solid #3B82F6;padding:15px;border-radius:8px;">
+            <div style="font-weight:bold;color:#1E3A8A;margin-bottom:8px;">${ins.icone} ${ins.titre}</div>
+            <div style="color:#6B7280;font-size:13px;">${ins.observation}</div>
+          </div>`).join('')}
+        </div>
+      </div>` : '',
+
+      ai && ai.plan_action && ai.plan_action.length > 0 ? `<div class="slide">
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">📋 Plan d'action</h2>
+        <div style="margin-top:30px;display:flex;flex-direction:column;gap:15px;">
+          ${ai.plan_action.map(a => `
+          <div style="display:flex;gap:20px;align-items:center;background:#f0fdf4;padding:15px;border-radius:12px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:${a.priorite === 1 ? '#EF4444' : a.priorite === 2 ? '#F97316' : '#3B82F6'};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;flex-shrink:0;">${a.priorite}</div>
+            <div>
+              <div style="font-weight:bold;color:#1E3A8A;">${a.action}</div>
+              <div style="color:#6B7280;font-size:13px;">⏱️ ${a.delai} | 💥 ${a.impact}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>` : '',
+
+      data.kpis.length > 0 ? `<div class="slide">
+        <h2 style="color:#1E3A8A;border-bottom:3px solid #1E3A8A;padding-bottom:15px;">📊 Indicateurs clés</h2>
+        <table style="width:100%;border-collapse:collapse;margin-top:30px;font-size:15px;">
           <tr style="background:#1E3A8A;color:white;">
             <th style="padding:12px;text-align:left;">Colonne</th>
             <th style="padding:12px;">Total</th>
@@ -470,25 +668,22 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
             <td style="padding:12px;text-align:center;">${k.max.toLocaleString()}</td>
           </tr>`).join('')}
         </table>
-      </div>`,
-    ];
+      </div>` : '',
+    ].filter(Boolean);
 
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Presentation - ${fileName}</title>
+  <title>Presentation — ${fileName}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Arial,sans-serif; background:#111; }
-    .slide { width:1280px; height:720px; background:white; padding:60px; margin:20px auto; border-radius:12px; position:relative; box-shadow:0 10px 40px rgba(0,0,0,0.3); page-break-after:always; }
-    .kpi-card { background:#DBEAFE; border-radius:16px; padding:30px 50px; text-align:center; min-width:200px; }
+    .slide { width:1280px; height:720px; background:white; padding:60px; margin:20px auto; border-radius:12px; position:relative; box-shadow:0 10px 40px rgba(0,0,0,0.3); page-break-after:always; overflow:hidden; }
     @media print { body { background:white; } .slide { margin:0; border-radius:0; box-shadow:none; } }
   </style>
 </head>
-<body>
-  ${slides.join('')}
-</body>
+<body>${slides.join('')}</body>
 </html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
@@ -505,15 +700,11 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
       const shareId = Math.random().toString(36).substring(2, 10);
       const { error } = await supabase
         .from('shares')
-        .insert([{
-          share_id: shareId,
-          file_name: fileName,
-          analysis_data: data,
-        }]);
+        .insert([{ share_id: shareId, file_name: fileName, analysis_data: data }]);
       if (!error) {
         const shareUrl = `${window.location.origin}/share/${shareId}`;
         await navigator.clipboard.writeText(shareUrl);
-        toast.success(`Lien copié ! Valable 7 jours.`);
+        toast.success('Lien copié ! Valable 7 jours.');
       } else {
         toast.error('Erreur lors du partage.');
       }
@@ -525,7 +716,7 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
   return (
     <div className="flex flex-col gap-8">
 
-      {/* Header dashboard */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-primary">Dashboard</h2>
@@ -543,7 +734,7 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
               📝 {t.exportWord}
             </button>
             <button onClick={handleExportPPT} className="bg-orange-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-orange-600 transition flex items-center gap-1">
-              📊 {t.exportPPT}
+              🎯 {t.exportPPT}
             </button>
             <button onClick={handleShare} className="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-600 transition flex items-center gap-1">
               🔗 {t.share}
@@ -558,35 +749,8 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
         )}
       </div>
 
-      {/* Insight intelligent */}
-      <div className="bg-gradient-to-r from-primary to-secondary rounded-2xl p-6 text-white">
-        <h3 className="font-bold text-lg mb-3">🧠 {t.insight}</h3>
-        <div className="flex flex-col gap-2">
-          {insights.map((insight, i) => (
-            <p key={i} className="text-blue-100 text-sm leading-relaxed">{insight}</p>
-          ))}
-        </div>
-      </div>
-
-      {/* Alertes */}
-      {data.alerts.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h3 className="text-lg font-bold text-primary">🚨 {t.alerts}</h3>
-          {data.alerts.map((alert, i) => (
-            <div key={i} className={`px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-3 ${
-              alert.type === 'danger' ? 'bg-red-50 text-red-700 border border-red-200' :
-              alert.type === 'warning' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
-              'bg-yellow-50 text-yellow-700 border border-yellow-200'
-            }`}>
-              <span className="text-xl">{alert.type === 'danger' ? '🔴' : '🟡'}</span>
-              {alert.message}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Résumé + Qualité */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Résumé */}
+      <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center hover:shadow-md transition">
           <div className="text-4xl mb-2">📝</div>
           <p className="text-4xl font-black text-primary">{data.summary.total_rows}</p>
@@ -602,11 +766,29 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
           <p className="text-4xl font-black text-primary">{data.summary.missing_values}</p>
           <p className="text-gray-400 text-sm mt-1">{t.missing}</p>
         </div>
-        <DataQualityScore data={data} />
       </div>
 
+      {/* Alertes */}
+      {data.alerts && data.alerts.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-lg font-bold text-primary">🚨 {t.alerts}</h3>
+          {data.alerts.map((alert, i) => (
+            <div key={i} className={`px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-3 ${
+              alert.type === 'danger' ? 'bg-red-50 text-red-700 border border-red-200' :
+              'bg-orange-50 text-orange-700 border border-orange-200'
+            }`}>
+              <span className="text-xl">{alert.type === 'danger' ? '🔴' : '🟡'}</span>
+              {alert.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Analyse IA complète */}
+      <AIInsightsBlock ai={data.ai_insights} />
+
       {/* KPIs */}
-      {data.kpis.length > 0 && (
+      {data.kpis && data.kpis.length > 0 && (
         <div>
           <h3 className="text-lg font-bold text-primary mb-4">💡 {t.kpis}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -618,7 +800,7 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
       )}
 
       {/* Graphiques */}
-      {data.charts.length > 0 && (
+      {data.charts && data.charts.length > 0 && (
         <div>
           <h3 className="text-lg font-bold text-primary mb-4">📈 {t.charts}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -632,7 +814,7 @@ function Dashboard({ data, fileName, language, onReset, readOnly }) {
       {/* Anomalies */}
       <div>
         <h3 className="text-lg font-bold text-primary mb-4">🔍 {t.anomalies}</h3>
-        {data.anomalies.length === 0 ? (
+        {!data.anomalies || data.anomalies.length === 0 ? (
           <div className="bg-green-50 text-green-700 border border-green-200 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
             <span className="text-xl">✅</span>
             {t.noAnomalies}
