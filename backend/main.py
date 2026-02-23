@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 import openpyxl
+import os
+import json
+import httpx
 
 app = FastAPI(title="Smart Excel Analyzer API")
 
@@ -15,11 +18,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+
 def unmerge_and_fill(file_bytes):
-    """Détecte et remplit les cellules fusionnées"""
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
     ws = wb.active
-
     merged_ranges = list(ws.merged_cells.ranges)
     for merge_range in merged_ranges:
         min_row = merge_range.min_row
@@ -29,33 +33,23 @@ def unmerge_and_fill(file_bytes):
         for row in range(merge_range.min_row, merge_range.max_row + 1):
             for col in range(merge_range.min_col, merge_range.max_col + 1):
                 ws.cell(row=row, column=col).value = top_left_value
-
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     return buffer
 
 def detect_header_row(df_raw):
-    """Détecte automatiquement la ligne d'en-tête du tableau"""
     for i, row in df_raw.iterrows():
         non_null = row.dropna()
         if len(non_null) >= 2:
-            # Vérifie si la majorité des valeurs sont des strings = c'est un en-tête
             str_count = sum(1 for v in non_null if isinstance(v, str))
             if str_count >= len(non_null) * 0.5:
                 return i
     return 0
 
 def clean_dataframe(df):
-    """Nettoie et normalise le DataFrame peu importe la structure"""
-
-    # 1 — Supprimer les lignes entièrement vides
     df = df.dropna(how='all')
-
-    # 2 — Supprimer les colonnes entièrement vides
     df = df.dropna(axis=1, how='all')
-
-    # 3 — Nettoyer les noms de colonnes
     new_cols = []
     seen = {}
     for col in df.columns:
@@ -69,14 +63,9 @@ def clean_dataframe(df):
             seen[col_str] = 0
         new_cols.append(col_str)
     df.columns = new_cols
-
-    # 4 — Forward fill sur les colonnes texte (cellules fusionnées)
     for col in df.columns:
         if df[col].dtype == object:
             df[col] = df[col].ffill()
-
-    # 5 — Supprimer les lignes qui sont des sous-totaux
-    # (lignes où une colonne texte contient "total", "sous-total", "somme")
     for col in df.columns:
         if df[col].dtype == object:
             mask = df[col].astype(str).str.lower().str.contains(
@@ -84,51 +73,41 @@ def clean_dataframe(df):
                 regex=True, na=False
             )
             df = df[~mask]
-
-    # 6 — Reset index
     df = df.reset_index(drop=True)
-
     return df
 
 def smart_read_excel(file_bytes):
-    """Lecture intelligente qui s'adapte à n'importe quelle structure"""
-
-    # Étape 1 — Défusionner les cellules
     try:
         cleaned_buffer = unmerge_and_fill(file_bytes)
     except Exception:
         cleaned_buffer = BytesIO(file_bytes)
 
-    # Étape 2 — Lire le fichier brut sans supposer de header
     try:
         df_raw = pd.read_excel(cleaned_buffer, header=None)
     except Exception:
         df_raw = pd.read_excel(BytesIO(file_bytes), header=None)
 
-    # Étape 3 — Détecter la ligne d'en-tête
     header_row = detect_header_row(df_raw)
 
-    # Étape 4 — Relire avec le bon header
     cleaned_buffer.seek(0)
     try:
         df = pd.read_excel(cleaned_buffer, header=header_row)
     except Exception:
         df = pd.read_excel(BytesIO(file_bytes), header=header_row)
 
-    # Étape 5 — Nettoyer le DataFrame
     df = clean_dataframe(df)
 
-    # Étape 6 — Convertir les colonnes numériques mal lues
     for col in df.columns:
         try:
-            converted = pd.to_numeric(df[col].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
-            # Si plus de 50% des valeurs sont converties → colonne numérique
+            converted = pd.to_numeric(
+                df[col].astype(str).str.replace(' ', '').str.replace(',', '.'),
+                errors='coerce'
+            )
             if converted.notna().sum() > len(df) * 0.5:
                 df[col] = converted
         except Exception:
             pass
 
-    # Étape 7 — Convertir les colonnes dates mal lues
     for col in df.columns:
         if df[col].dtype == object:
             try:
@@ -140,8 +119,99 @@ def smart_read_excel(file_bytes):
 
     return df
 
+async def generate_gemini_insights(df, result):
+    """Génère des insights intelligents avec Gemini"""
+    try:
+        # Préparer le contexte pour Gemini
+        context = {
+            "nombre_lignes": result["summary"]["total_rows"],
+            "nombre_colonnes": result["summary"]["total_columns"],
+            "valeurs_manquantes": result["summary"]["missing_values"],
+            "colonnes": result["summary"]["columns_list"],
+            "kpis": result["kpis"],
+            "alertes": result["alerts"],
+            "anomalies": result["anomalies"],
+            "apercu_donnees": df.head(10).to_string()
+        }
+
+        prompt = f"""Tu es un expert analyste de données pour PME africaines.
+Analyse ces données Excel et génère des insights intelligents, concrets et actionnables.
+
+DONNÉES :
+{json.dumps(context, ensure_ascii=False, default=str)}
+
+INSTRUCTIONS :
+1. Identifie le contexte/domaine des données (sport, RH, finance, comptabilité, etc.)
+2. Génère exactement 5 insights intelligents et spécifiques aux données
+3. Pour chaque insight, donne un conseil concret et actionnable
+4. Identifie les points forts et les points faibles
+5. Génère un plan d'action prioritaire avec 3 actions concrètes
+6. Donne un score de santé global entre 0 et 100
+
+Réponds UNIQUEMENT en JSON avec cette structure exacte :
+{{
+  "domaine": "string (ex: Comptabilité sportive, Gestion RH, Finance...)",
+  "resume_executif": "string (2-3 phrases résumant la situation globale)",
+  "insights": [
+    {{
+      "titre": "string",
+      "observation": "string",
+      "conseil": "string",
+      "priorite": "haute|moyenne|faible",
+      "icone": "emoji"
+    }}
+  ],
+  "points_forts": ["string", "string", "string"],
+  "points_faibles": ["string", "string", "string"],
+  "plan_action": [
+    {{
+      "priorite": 1,
+      "action": "string",
+      "delai": "string",
+      "impact": "string"
+    }}
+  ],
+  "score_sante": number
+}}"""
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                GEMINI_URL,
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.3,
+                        "maxOutputTokens": 2048
+                    }
+                }
+            )
+            data = response.json()
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+
+            # Nettoyer le JSON
+            text = text.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            return json.loads(text)
+
+    except Exception as e:
+        return {
+            "domaine": "Données générales",
+            "resume_executif": "Analyse effectuée avec succès.",
+            "insights": [],
+            "points_forts": [],
+            "points_faibles": [],
+            "plan_action": [],
+            "score_sante": 75
+        }
+
 def analyze_excel(df):
-    """Analyse automatique complète du fichier Excel"""
     result = {
         "summary": {},
         "columns": {},
@@ -186,7 +256,6 @@ def analyze_excel(df):
         category_cols.append(col)
         result["columns"][col] = "category"
 
-    # KPIs
     for col in number_cols:
         clean = df[col].dropna()
         if len(clean) == 0:
@@ -206,7 +275,6 @@ def analyze_excel(df):
                 "message": f"Valeur anormalement élevée dans '{col}': {round(float(clean.max()), 2)}"
             })
 
-    # Graphiques Date + Nombre
     for date_col in date_cols:
         for num_col in number_cols:
             try:
@@ -231,7 +299,6 @@ def analyze_excel(df):
             except Exception:
                 pass
 
-    # Graphiques Catégorie + Nombre
     for cat_col in category_cols:
         for num_col in number_cols:
             try:
@@ -248,7 +315,6 @@ def analyze_excel(df):
             except Exception:
                 pass
 
-    # Graphiques Booléen
     for bool_col in boolean_cols:
         try:
             counts = df[bool_col].astype(str).str.lower().value_counts()
@@ -261,7 +327,6 @@ def analyze_excel(df):
         except Exception:
             pass
 
-    # Anomalies
     for col in number_cols:
         try:
             clean = df[col].dropna()
@@ -293,6 +358,11 @@ async def analyze(file: UploadFile = File(...)):
         contents = await file.read()
         df = smart_read_excel(contents)
         result = analyze_excel(df)
+
+        # Générer les insights Gemini
+        gemini_insights = await generate_gemini_insights(df, result)
+        result["ai_insights"] = gemini_insights
+
         return {"status": "success", "data": result}
     except Exception as e:
         return {"status": "error", "message": str(e)}

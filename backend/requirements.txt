@@ -3,5 +3,5 @@ uvicorn
 pandas
 numpy
 openpyxl
+httpx
 python-multipart
-scipy
