@@ -19,7 +19,7 @@ app.add_middleware(
 )
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key={GEMINI_API_KEY}"
 
 def unmerge_and_fill(file_bytes):
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
@@ -77,7 +77,6 @@ def clean_dataframe(df):
     return df
 
 def is_phone_number(series):
-    """Détecte si une colonne est un numéro de téléphone"""
     clean = series.dropna()
     if len(clean) == 0:
         return False
@@ -85,15 +84,12 @@ def is_phone_number(series):
         nums = pd.to_numeric(clean, errors='coerce').dropna()
         if len(nums) == 0:
             return False
-        # Téléphones camerounais : 9 chiffres, commencent par 6
         return nums.between(600000000, 699999999).sum() > len(nums) * 0.5
     except:
         return False
 
 def is_matricule(series):
-    """Détecte si une colonne est un matricule"""
     clean = series.dropna().astype(str)
-    # Matricule : contient des tirets et des chiffres
     return clean.str.contains(r'\d{3}-\d{7}-\d', regex=True).sum() > len(clean) * 0.5
 
 def smart_read_excel(file_bytes):
@@ -132,8 +128,17 @@ def smart_read_excel(file_bytes):
                 pass
     return df
 
+def safe_str(val):
+    """Convertit une valeur en string safe pour JSON"""
+    try:
+        s = str(val)
+        s = s.encode('utf-8', errors='ignore').decode('utf-8')
+        s = s.replace('\\', '/').replace('\r', ' ').replace('\n', ' ')
+        return s
+    except:
+        return ''
+
 def extract_basic_stats(df):
-    """Extraction statistiques de base — calcul local rapide"""
     number_cols = []
     date_cols = []
     category_cols = []
@@ -146,41 +151,34 @@ def extract_basic_stats(df):
 
     for col in df.columns:
         series = df[col]
-
-        # Ignorer téléphones et matricules
         if is_phone_number(series):
             ignored_cols.append(col)
             continue
         if is_matricule(series):
             ignored_cols.append(col)
             continue
-
         if pd.api.types.is_datetime64_any_dtype(series):
             date_cols.append(col)
             continue
-
         unique_lower = series.dropna().astype(str).str.lower().unique()
         bool_keywords = {"oui","non","yes","no","true","false","présent","absent","actif","inactif"}
         if set(unique_lower).issubset(bool_keywords):
             boolean_cols.append(col)
             continue
-
         if pd.api.types.is_numeric_dtype(series):
             number_cols.append(col)
             continue
-
         category_cols.append(col)
 
     print(f"[STATS] Colonnes numériques: {number_cols}")
     print(f"[STATS] Colonnes ignorées: {ignored_cols}")
 
-    # KPIs
     for col in number_cols:
         clean = df[col].dropna()
         if len(clean) == 0:
             continue
         kpis.append({
-            "column": col,
+            "column": safe_str(col),
             "total": round(float(clean.sum()), 2),
             "average": round(float(clean.mean()), 2),
             "min": round(float(clean.min()), 2),
@@ -190,35 +188,32 @@ def extract_basic_stats(df):
         if clean.std() > 0 and clean.max() > clean.mean() + 2 * clean.std():
             alerts.append({
                 "type": "warning",
-                "message": f"Valeur élevée détectée dans '{col}': max={round(float(clean.max()), 2)}, moyenne={round(float(clean.mean()), 2)}"
+                "message": f"Valeur élevée dans '{safe_str(col)}': max={round(float(clean.max()), 2)}, moyenne={round(float(clean.mean()), 2)}"
             })
 
-    # Graphiques Date + Nombre
     for date_col in date_cols:
         for num_col in number_cols:
             try:
                 time_series = df.groupby(df[date_col].dt.to_period("M"))[num_col].sum()
                 values = [round(float(v), 2) for v in time_series.values]
-                labels = [str(p) for p in time_series.index]
+                labels = [safe_str(p) for p in time_series.index]
                 if len(values) >= 2 and values[-1] < values[-2] * 0.8:
                     alerts.append({
                         "type": "danger",
-                        "message": f"Baisse de plus de 20% sur '{num_col}'"
+                        "message": f"Baisse de plus de 20% sur '{safe_str(num_col)}'"
                     })
                 charts.append({
                     "type": "line",
-                    "title": f"Évolution de {num_col} par mois",
+                    "title": f"Evolution de {safe_str(num_col)} par mois",
                     "labels": labels,
                     "values": values,
-                    "x_col": date_col,
-                    "y_col": num_col
+                    "x_col": safe_str(date_col),
+                    "y_col": safe_str(num_col)
                 })
             except Exception:
                 pass
 
-    # Graphiques Catégorie + Nombre — limité aux colonnes utiles
     for cat_col in category_cols:
-        # Ignorer les colonnes avec trop de valeurs uniques (matricules, noms)
         if df[cat_col].nunique() > 20:
             continue
         for num_col in number_cols:
@@ -227,29 +222,27 @@ def extract_basic_stats(df):
                 if len(grouped) > 1:
                     charts.append({
                         "type": "bar",
-                        "title": f"{num_col} par {cat_col}",
-                        "labels": [str(l) for l in grouped.index.tolist()],
+                        "title": f"{safe_str(num_col)} par {safe_str(cat_col)}",
+                        "labels": [safe_str(l) for l in grouped.index.tolist()],
                         "values": [round(float(v), 2) for v in grouped.values.tolist()],
-                        "x_col": cat_col,
-                        "y_col": num_col
+                        "x_col": safe_str(cat_col),
+                        "y_col": safe_str(num_col)
                     })
             except Exception:
                 pass
 
-    # Graphiques Booléen
     for bool_col in boolean_cols:
         try:
             counts = df[bool_col].astype(str).str.lower().value_counts()
             charts.append({
                 "type": "donut",
-                "title": f"Répartition de {bool_col}",
-                "labels": counts.index.tolist(),
+                "title": f"Repartition de {safe_str(bool_col)}",
+                "labels": [safe_str(l) for l in counts.index.tolist()],
                 "values": [int(v) for v in counts.values.tolist()]
             })
         except Exception:
             pass
 
-    # Anomalies
     for col in number_cols:
         try:
             clean = df[col].dropna()
@@ -262,9 +255,9 @@ def extract_basic_stats(df):
             outliers = df[abs(df[col] - mean) > 3 * std]
             if not outliers.empty:
                 anomalies.append({
-                    "column": col,
+                    "column": safe_str(col),
                     "count": len(outliers),
-                    "message": f"{len(outliers)} valeur(s) aberrante(s) dans '{col}'"
+                    "message": f"{len(outliers)} valeur(s) aberrante(s) dans '{safe_str(col)}'"
                 })
         except Exception:
             pass
@@ -282,56 +275,67 @@ def extract_basic_stats(df):
     }
 
 async def gemini_full_analysis(df, basic_stats):
-    """Gemini fait l'analyse complète et intelligente"""
     try:
-        apercu = df.head(20).to_string()
-        stats_summary = {
-            "colonnes_numeriques": basic_stats["number_cols"],
-            "colonnes_dates": basic_stats["date_cols"],
-            "colonnes_categories": basic_stats["category_cols"],
-            "colonnes_ignorees": basic_stats["ignored_cols"],
+        # Aperçu safe
+        apercu_lines = []
+        for i, row in df.head(15).iterrows():
+            line_parts = []
+            for col in df.columns:
+                val = safe_str(row[col])
+                col_s = safe_str(col)
+                line_parts.append(f"{col_s}={val}")
+            apercu_lines.append(" | ".join(line_parts))
+        apercu = "\n".join(apercu_lines)
+
+        # Stats safe
+        stats_safe = {
+            "nb_lignes": len(df),
+            "nb_colonnes": len(df.columns),
+            "colonnes": [safe_str(c) for c in df.columns.tolist()],
+            "colonnes_numeriques": [safe_str(c) for c in basic_stats["number_cols"]],
+            "colonnes_categories": [safe_str(c) for c in basic_stats["category_cols"]],
+            "colonnes_ignorees": [safe_str(c) for c in basic_stats["ignored_cols"]],
             "kpis": basic_stats["kpis"],
-            "alertes_detectees": basic_stats["alerts"],
+            "alertes": basic_stats["alerts"],
             "anomalies": basic_stats["anomalies"],
         }
+        stats_str = json.dumps(stats_safe, ensure_ascii=True, default=str)
 
-        prompt = f"""Tu es un expert analyste de données senior pour PME africaines.
-Analyse ce fichier Excel de façon complète, intelligente et professionnelle.
+        prompt = f"""Tu es un expert analyste de donnees senior pour PME africaines.
+Analyse ce fichier Excel de facon complete, intelligente et professionnelle.
 
-APERÇU DES DONNÉES (20 premières lignes) :
+APERCU DES DONNEES (15 premieres lignes) :
 {apercu}
 
-STATISTIQUES CALCULÉES :
-{json.dumps(stats_summary, ensure_ascii=False, default=str)}
+STATISTIQUES :
+{stats_str}
 
-INSTRUCTIONS IMPORTANTES :
-- Identifie précisément le domaine (RH, finance, sport, comptabilité, inventaire, etc.)
-- Les colonnes ignorées sont des téléphones ou matricules — ne les analyse pas comme des chiffres
-- Analyse en profondeur ce que représentent vraiment ces données
-- Génère des insights SPÉCIFIQUES aux données — pas de messages génériques
-- Donne des conseils CONCRETS et ACTIONNABLES adaptés au contexte camerounais
-- Identifie des patterns cachés que l'oeil humain ne voit pas facilement
-- Si c'est une fiche RH/CNPS — analyse les charges sociales, CV (congés?), CS (charges sociales?)
-- Le plan d'action doit être réaliste et immédiatement applicable
+INSTRUCTIONS :
+- Identifie le domaine precis (RH, finance, sport, comptabilite, inventaire, etc.)
+- Les colonnes ignorees sont des telephones ou matricules
+- Genere des insights SPECIFIQUES aux donnees, pas generiques
+- Donne des conseils CONCRETS et ACTIONNABLES
+- Si c est une fiche RH/CNPS : analyse CV=conges, CS=charges sociales
+- Plan d action realiste et immediatement applicable
 
-Réponds UNIQUEMENT en JSON valide avec cette structure exacte :
+Reponds UNIQUEMENT en JSON valide :
 {{
   "domaine": "string",
-  "contexte": "string (description précise de ce que contient ce fichier)",
-  "resume_executif": "string (3-4 phrases percutantes sur la situation globale)",
-  "score_sante": number (0-100),
-  "score_explication": "string (pourquoi ce score)",
+  "contexte": "string",
+  "resume_executif": "string",
+  "score_sante": number,
+  "score_explication": "string",
   "insights": [
     {{
       "titre": "string",
-      "observation": "string (fait précis tiré des données)",
-      "conseil": "string (action concrète et immédiate)",
+      "observation": "string",
+      "conseil": "string",
       "priorite": "haute|moyenne|faible",
       "icone": "emoji"
     }}
   ],
-  "points_forts": ["string", "string", "string"],
-  "points_faibles": ["string", "string", "string"],
+  "points_forts": ["string", "string"],
+  "points_faibles": ["string", "string"],
   "opportunites": ["string", "string"],
   "risques": ["string", "string"],
   "plan_action": [
@@ -343,11 +347,11 @@ Réponds UNIQUEMENT en JSON valide avec cette structure exacte :
       "impact": "string"
     }}
   ],
-  "conclusion": "string (message final motivant)"
+  "conclusion": "string"
 }}"""
 
-        print(f"[GEMINI] Envoi requête...")
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        print(f"[GEMINI] Envoi requete... ({len(prompt)} chars)")
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 GEMINI_URL,
                 json={
@@ -360,14 +364,13 @@ Réponds UNIQUEMENT en JSON valide avec cette structure exacte :
             )
             print(f"[GEMINI] Status: {response.status_code}")
             data = response.json()
-            print(f"[GEMINI] Response keys: {list(data.keys())}")
 
             if "error" in data:
                 print(f"[GEMINI] ERREUR API: {data['error']}")
                 raise Exception(f"Gemini error: {data['error']}")
 
             text = data["candidates"][0]["content"]["parts"][0]["text"]
-            print(f"[GEMINI] Texte reçu ({len(text)} chars)")
+            print(f"[GEMINI] Reponse recue ({len(text)} chars)")
 
             text = text.strip()
             if text.startswith("```json"):
@@ -379,43 +382,40 @@ Réponds UNIQUEMENT en JSON valide avec cette structure exacte :
             text = text.strip()
 
             result = json.loads(text)
-            print(f"[GEMINI] JSON parsé avec succès - domaine: {result.get('domaine')}")
+            print(f"[GEMINI] Succes - domaine: {result.get('domaine')}")
             return result
 
     except Exception as e:
         print(f"[GEMINI] EXCEPTION: {type(e).__name__}: {str(e)}")
         return {
-            "domaine": "Données générales",
-            "contexte": "Fichier Excel analysé",
-            "resume_executif": f"Erreur analyse IA: {str(e)}",
-            "score_sante": 75,
-            "score_explication": "Score par défaut",
+            "domaine": "Erreur",
+            "contexte": "Erreur lors de l analyse IA",
+            "resume_executif": f"Erreur: {str(e)}",
+            "score_sante": 0,
+            "score_explication": "Erreur",
             "insights": [],
             "points_forts": [],
             "points_faibles": [],
             "opportunites": [],
             "risques": [],
             "plan_action": [],
-            "conclusion": "Continuez votre excellent travail."
+            "conclusion": ""
         }
 
 async def gemini_compare(data1, data2, file1_name, file2_name):
-    """Gemini compare deux fichiers de façon intelligente"""
     try:
-        prompt = f"""Tu es un expert analyste de données senior.
-Compare ces deux fichiers Excel de façon intelligente et professionnelle.
+        prompt = f"""Tu es un expert analyste de donnees senior.
+Compare ces deux fichiers Excel intelligemment.
 
-FICHIER 1 : {file1_name}
-{json.dumps(data1, ensure_ascii=False, default=str)}
+FICHIER 1 : {safe_str(file1_name)}
+{json.dumps(data1, ensure_ascii=True, default=str)}
 
-FICHIER 2 : {file2_name}
-{json.dumps(data2, ensure_ascii=False, default=str)}
+FICHIER 2 : {safe_str(file2_name)}
+{json.dumps(data2, ensure_ascii=True, default=str)}
 
-Analyse les différences, tendances et évolutions entre les deux fichiers.
-
-Réponds UNIQUEMENT en JSON valide :
+Reponds UNIQUEMENT en JSON valide :
 {{
-  "resume_comparaison": "string (3-4 phrases sur les différences principales)",
+  "resume_comparaison": "string",
   "evolution_globale": "positive|negative|stable",
   "score_file1": number,
   "score_file2": number,
@@ -428,13 +428,13 @@ Réponds UNIQUEMENT en JSON valide :
       "interpretation": "string"
     }}
   ],
-  "points_amelioration": ["string", "string", "string"],
+  "points_amelioration": ["string", "string"],
   "points_regression": ["string", "string"],
   "recommandations": ["string", "string", "string"],
   "conclusion": "string"
 }}"""
 
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 GEMINI_URL,
                 json={
@@ -446,6 +446,8 @@ Réponds UNIQUEMENT en JSON valide :
                 }
             )
             data = response.json()
+            if "error" in data:
+                raise Exception(f"Gemini error: {data['error']}")
             text = data["candidates"][0]["content"]["parts"][0]["text"]
             text = text.strip()
             if text.startswith("```json"):
@@ -459,7 +461,7 @@ Réponds UNIQUEMENT en JSON valide :
     except Exception as e:
         print(f"[GEMINI COMPARE] EXCEPTION: {str(e)}")
         return {
-            "resume_comparaison": "Comparaison effectuée.",
+            "resume_comparaison": "Comparaison effectuee.",
             "evolution_globale": "stable",
             "score_file1": 70,
             "score_file2": 70,
@@ -472,7 +474,7 @@ Réponds UNIQUEMENT en JSON valide :
 
 @app.get("/")
 def root():
-    return {"message": "Smart Excel Analyzer API is running 🚀"}
+    return {"message": "Smart Excel Analyzer API is running"}
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
@@ -480,7 +482,7 @@ async def analyze(file: UploadFile = File(...)):
         contents = await file.read()
         df = smart_read_excel(contents)
 
-        print(f"[ANALYZE] Fichier lu: {len(df)} lignes, {len(df.columns)} colonnes")
+        print(f"[ANALYZE] Fichier: {len(df)} lignes, {len(df.columns)} colonnes")
         print(f"[ANALYZE] Colonnes: {list(df.columns)}")
 
         basic_stats = extract_basic_stats(df)
@@ -491,7 +493,7 @@ async def analyze(file: UploadFile = File(...)):
                 "total_rows": len(df),
                 "total_columns": len(df.columns),
                 "missing_values": int(df.isnull().sum().sum()),
-                "columns_list": list(df.columns)
+                "columns_list": [safe_str(c) for c in df.columns.tolist()]
             },
             "kpis": basic_stats["kpis"],
             "charts": basic_stats["charts"],
@@ -510,20 +512,16 @@ async def compare(file1: UploadFile = File(...), file2: UploadFile = File(...)):
     try:
         contents1 = await file1.read()
         contents2 = await file2.read()
-
         df1 = smart_read_excel(contents1)
         df2 = smart_read_excel(contents2)
-
         stats1 = extract_basic_stats(df1)
         stats2 = extract_basic_stats(df2)
-
         ai_compare = await gemini_compare(
             {"kpis": stats1["kpis"], "summary": {"rows": len(df1), "cols": len(df1.columns)}},
             {"kpis": stats2["kpis"], "summary": {"rows": len(df2), "cols": len(df2.columns)}},
             file1.filename,
             file2.filename
         )
-
         return {
             "status": "success",
             "data": {
