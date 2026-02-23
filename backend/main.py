@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
 from io import BytesIO
-import json
 import openpyxl
 
 app = FastAPI(title="Smart Excel Analyzer API")
@@ -17,56 +16,129 @@ app.add_middleware(
 )
 
 def unmerge_and_fill(file_bytes):
-    """Détecte et remplit les cellules fusionnées avant analyse"""
+    """Détecte et remplit les cellules fusionnées"""
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
     ws = wb.active
 
-    # Sauvegarder les plages fusionnées
     merged_ranges = list(ws.merged_cells.ranges)
-
     for merge_range in merged_ranges:
-        # Récupérer la valeur de la cellule principale (haut gauche)
         min_row = merge_range.min_row
         min_col = merge_range.min_col
         top_left_value = ws.cell(row=min_row, column=min_col).value
-
-        # Défusionner
         ws.unmerge_cells(str(merge_range))
-
-        # Remplir toutes les cellules avec la valeur de la cellule principale
         for row in range(merge_range.min_row, merge_range.max_row + 1):
             for col in range(merge_range.min_col, merge_range.max_col + 1):
                 ws.cell(row=row, column=col).value = top_left_value
 
-    # Sauvegarder dans un buffer
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     return buffer
 
-def detect_column_type(series):
-    """Détecte automatiquement le type de chaque colonne"""
+def detect_header_row(df_raw):
+    """Détecte automatiquement la ligne d'en-tête du tableau"""
+    for i, row in df_raw.iterrows():
+        non_null = row.dropna()
+        if len(non_null) >= 2:
+            # Vérifie si la majorité des valeurs sont des strings = c'est un en-tête
+            str_count = sum(1 for v in non_null if isinstance(v, str))
+            if str_count >= len(non_null) * 0.5:
+                return i
+    return 0
+
+def clean_dataframe(df):
+    """Nettoie et normalise le DataFrame peu importe la structure"""
+
+    # 1 — Supprimer les lignes entièrement vides
+    df = df.dropna(how='all')
+
+    # 2 — Supprimer les colonnes entièrement vides
+    df = df.dropna(axis=1, how='all')
+
+    # 3 — Nettoyer les noms de colonnes
+    new_cols = []
+    seen = {}
+    for col in df.columns:
+        col_str = str(col).strip()
+        if col_str.startswith('Unnamed') or col_str == 'nan':
+            col_str = f'Colonne_{len(new_cols)+1}'
+        if col_str in seen:
+            seen[col_str] += 1
+            col_str = f'{col_str}_{seen[col_str]}'
+        else:
+            seen[col_str] = 0
+        new_cols.append(col_str)
+    df.columns = new_cols
+
+    # 4 — Forward fill sur les colonnes texte (cellules fusionnées)
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].ffill()
+
+    # 5 — Supprimer les lignes qui sont des sous-totaux
+    # (lignes où une colonne texte contient "total", "sous-total", "somme")
+    for col in df.columns:
+        if df[col].dtype == object:
+            mask = df[col].astype(str).str.lower().str.contains(
+                r'^(total|sous.total|somme|sum|grand total)$',
+                regex=True, na=False
+            )
+            df = df[~mask]
+
+    # 6 — Reset index
+    df = df.reset_index(drop=True)
+
+    return df
+
+def smart_read_excel(file_bytes):
+    """Lecture intelligente qui s'adapte à n'importe quelle structure"""
+
+    # Étape 1 — Défusionner les cellules
     try:
-        numeric = pd.to_numeric(series.dropna(), errors='raise')
-        unique_vals = numeric.unique()
-        if set(unique_vals).issubset({0, 1}):
-            return "boolean"
-        return "number"
-    except:
-        pass
+        cleaned_buffer = unmerge_and_fill(file_bytes)
+    except Exception:
+        cleaned_buffer = BytesIO(file_bytes)
 
+    # Étape 2 — Lire le fichier brut sans supposer de header
     try:
-        pd.to_datetime(series.dropna(), infer_datetime_format=True)
-        return "date"
-    except:
-        pass
+        df_raw = pd.read_excel(cleaned_buffer, header=None)
+    except Exception:
+        df_raw = pd.read_excel(BytesIO(file_bytes), header=None)
 
-    unique_lower = series.dropna().astype(str).str.lower().unique()
-    bool_keywords = {"oui","non","yes","no","true","false","présent","absent","actif","inactif"}
-    if set(unique_lower).issubset(bool_keywords):
-        return "boolean"
+    # Étape 3 — Détecter la ligne d'en-tête
+    header_row = detect_header_row(df_raw)
 
-    return "category"
+    # Étape 4 — Relire avec le bon header
+    cleaned_buffer.seek(0)
+    try:
+        df = pd.read_excel(cleaned_buffer, header=header_row)
+    except Exception:
+        df = pd.read_excel(BytesIO(file_bytes), header=header_row)
+
+    # Étape 5 — Nettoyer le DataFrame
+    df = clean_dataframe(df)
+
+    # Étape 6 — Convertir les colonnes numériques mal lues
+    for col in df.columns:
+        try:
+            converted = pd.to_numeric(df[col].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
+            # Si plus de 50% des valeurs sont converties → colonne numérique
+            if converted.notna().sum() > len(df) * 0.5:
+                df[col] = converted
+        except Exception:
+            pass
+
+    # Étape 7 — Convertir les colonnes dates mal lues
+    for col in df.columns:
+        if df[col].dtype == object:
+            try:
+                converted = pd.to_datetime(df[col], infer_datetime_format=True, errors='coerce')
+                if converted.notna().sum() > len(df) * 0.5:
+                    df[col] = converted
+            except Exception:
+                pass
+
+    return df
 
 def analyze_excel(df):
     """Analyse automatique complète du fichier Excel"""
@@ -79,7 +151,6 @@ def analyze_excel(df):
         "anomalies": []
     }
 
-    # Résumé général
     result["summary"] = {
         "total_rows": len(df),
         "total_columns": len(df.columns),
@@ -115,9 +186,11 @@ def analyze_excel(df):
         category_cols.append(col)
         result["columns"][col] = "category"
 
-    # KPIs pour colonnes numériques
+    # KPIs
     for col in number_cols:
         clean = df[col].dropna()
+        if len(clean) == 0:
+            continue
         result["kpis"].append({
             "column": col,
             "total": round(float(clean.sum()), 2),
@@ -130,10 +203,10 @@ def analyze_excel(df):
         if clean.max() > clean.mean() * 3:
             result["alerts"].append({
                 "type": "warning",
-                "message": f"Valeur anormalement élevée détectée dans '{col}': {round(float(clean.max()), 2)}"
+                "message": f"Valeur anormalement élevée dans '{col}': {round(float(clean.max()), 2)}"
             })
 
-    # Graphiques : Date + Nombre
+    # Graphiques Date + Nombre
     for date_col in date_cols:
         for num_col in number_cols:
             try:
@@ -144,7 +217,7 @@ def analyze_excel(df):
                 if len(values) >= 2 and values[-1] < values[-2] * 0.8:
                     result["alerts"].append({
                         "type": "danger",
-                        "message": f"Baisse de plus de 20% détectée sur '{num_col}'"
+                        "message": f"Baisse de plus de 20% sur '{num_col}'"
                     })
 
                 result["charts"].append({
@@ -155,44 +228,58 @@ def analyze_excel(df):
                     "x_col": date_col,
                     "y_col": num_col
                 })
-            except:
+            except Exception:
                 pass
 
-    # Graphiques : Catégorie + Nombre
+    # Graphiques Catégorie + Nombre
     for cat_col in category_cols:
         for num_col in number_cols:
-            grouped = df.groupby(cat_col)[num_col].sum().sort_values(ascending=False).head(10)
-            result["charts"].append({
-                "type": "bar",
-                "title": f"{num_col} par {cat_col}",
-                "labels": [str(l) for l in grouped.index.tolist()],
-                "values": [round(float(v), 2) for v in grouped.values.tolist()],
-                "x_col": cat_col,
-                "y_col": num_col
-            })
+            try:
+                grouped = df.groupby(cat_col)[num_col].sum().sort_values(ascending=False).head(10)
+                if len(grouped) > 0:
+                    result["charts"].append({
+                        "type": "bar",
+                        "title": f"{num_col} par {cat_col}",
+                        "labels": [str(l) for l in grouped.index.tolist()],
+                        "values": [round(float(v), 2) for v in grouped.values.tolist()],
+                        "x_col": cat_col,
+                        "y_col": num_col
+                    })
+            except Exception:
+                pass
 
-    # Graphiques : Booléen
+    # Graphiques Booléen
     for bool_col in boolean_cols:
-        counts = df[bool_col].astype(str).str.lower().value_counts()
-        result["charts"].append({
-            "type": "donut",
-            "title": f"Répartition de {bool_col}",
-            "labels": counts.index.tolist(),
-            "values": [int(v) for v in counts.values.tolist()]
-        })
-
-    # Détection anomalies
-    for col in number_cols:
-        clean = df[col].dropna()
-        mean = clean.mean()
-        std = clean.std()
-        outliers = df[abs(df[col] - mean) > 3 * std]
-        if not outliers.empty:
-            result["anomalies"].append({
-                "column": col,
-                "count": len(outliers),
-                "message": f"{len(outliers)} valeur(s) aberrante(s) détectée(s) dans '{col}'"
+        try:
+            counts = df[bool_col].astype(str).str.lower().value_counts()
+            result["charts"].append({
+                "type": "donut",
+                "title": f"Répartition de {bool_col}",
+                "labels": counts.index.tolist(),
+                "values": [int(v) for v in counts.values.tolist()]
             })
+        except Exception:
+            pass
+
+    # Anomalies
+    for col in number_cols:
+        try:
+            clean = df[col].dropna()
+            if len(clean) < 3:
+                continue
+            mean = clean.mean()
+            std = clean.std()
+            if std == 0:
+                continue
+            outliers = df[abs(df[col] - mean) > 3 * std]
+            if not outliers.empty:
+                result["anomalies"].append({
+                    "column": col,
+                    "count": len(outliers),
+                    "message": f"{len(outliers)} valeur(s) aberrante(s) dans '{col}'"
+                })
+        except Exception:
+            pass
 
     return result
 
@@ -204,23 +291,7 @@ def root():
 async def analyze(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-
-        # Traitement cellules fusionnées
-        try:
-            cleaned_buffer = unmerge_and_fill(contents)
-            df = pd.read_excel(cleaned_buffer)
-        except Exception:
-            # Fallback si openpyxl échoue
-            df = pd.read_excel(BytesIO(contents))
-
-        # Nettoyage colonnes Unnamed
-        df = df.loc[:, ~df.columns.astype(str).str.startswith('Unnamed')]
-
-        # Remplissage forward fill pour colonnes catégories fusionnées
-        for col in df.columns:
-            if df[col].dtype == object:
-                df[col] = df[col].fillna(method='ffill')
-
+        df = smart_read_excel(contents)
         result = analyze_excel(df)
         return {"status": "success", "data": result}
     except Exception as e:
