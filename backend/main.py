@@ -19,7 +19,7 @@ app.add_middleware(
 )
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 def unmerge_and_fill(file_bytes):
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
@@ -129,10 +129,9 @@ def smart_read_excel(file_bytes):
     return df
 
 def safe_str(val):
-    """Convertit une valeur en string safe pour JSON"""
     try:
         s = str(val)
-        s = s.encode('utf-8', errors='ignore').decode('utf-8')
+        s = s.encode('ascii', errors='ignore').decode('ascii')
         s = s.replace('\\', '/').replace('\r', ' ').replace('\n', ' ')
         return s
     except:
@@ -161,7 +160,7 @@ def extract_basic_stats(df):
             date_cols.append(col)
             continue
         unique_lower = series.dropna().astype(str).str.lower().unique()
-        bool_keywords = {"oui","non","yes","no","true","false","présent","absent","actif","inactif"}
+        bool_keywords = {"oui","non","yes","no","true","false","present","absent","actif","inactif"}
         if set(unique_lower).issubset(bool_keywords):
             boolean_cols.append(col)
             continue
@@ -170,8 +169,8 @@ def extract_basic_stats(df):
             continue
         category_cols.append(col)
 
-    print(f"[STATS] Colonnes numériques: {number_cols}")
-    print(f"[STATS] Colonnes ignorées: {ignored_cols}")
+    print(f"[STATS] Colonnes numeriques: {number_cols}")
+    print(f"[STATS] Colonnes ignorees: {ignored_cols}")
 
     for col in number_cols:
         clean = df[col].dropna()
@@ -188,7 +187,7 @@ def extract_basic_stats(df):
         if clean.std() > 0 and clean.max() > clean.mean() + 2 * clean.std():
             alerts.append({
                 "type": "warning",
-                "message": f"Valeur élevée dans '{safe_str(col)}': max={round(float(clean.max()), 2)}, moyenne={round(float(clean.mean()), 2)}"
+                "message": f"Valeur elevee dans '{safe_str(col)}': max={round(float(clean.max()), 2)}, moyenne={round(float(clean.mean()), 2)}"
             })
 
     for date_col in date_cols:
@@ -276,7 +275,6 @@ def extract_basic_stats(df):
 
 async def gemini_full_analysis(df, basic_stats):
     try:
-        # Aperçu safe
         apercu_lines = []
         for i, row in df.head(15).iterrows():
             line_parts = []
@@ -287,7 +285,6 @@ async def gemini_full_analysis(df, basic_stats):
             apercu_lines.append(" | ".join(line_parts))
         apercu = "\n".join(apercu_lines)
 
-        # Stats safe
         stats_safe = {
             "nb_lignes": len(df),
             "nb_colonnes": len(df.columns),
@@ -302,23 +299,23 @@ async def gemini_full_analysis(df, basic_stats):
         stats_str = json.dumps(stats_safe, ensure_ascii=True, default=str)
 
         prompt = f"""Tu es un expert analyste de donnees senior pour PME africaines.
-Analyse ce fichier Excel de facon complete, intelligente et professionnelle.
+Analyse ce fichier Excel de facon complete et professionnelle.
 
-APERCU DES DONNEES (15 premieres lignes) :
+APERCU DES DONNEES :
 {apercu}
 
 STATISTIQUES :
 {stats_str}
 
 INSTRUCTIONS :
-- Identifie le domaine precis (RH, finance, sport, comptabilite, inventaire, etc.)
-- Les colonnes ignorees sont des telephones ou matricules
+- Identifie le domaine precis (RH, finance, sport, comptabilite, etc.)
 - Genere des insights SPECIFIQUES aux donnees, pas generiques
 - Donne des conseils CONCRETS et ACTIONNABLES
-- Si c est une fiche RH/CNPS : analyse CV=conges, CS=charges sociales
+- Si c est une fiche RH/CNPS : CV=conges payes, CS=charges sociales patronales
 - Plan d action realiste et immediatement applicable
+- NE PAS utiliser d emojis dans le JSON
 
-Reponds UNIQUEMENT en JSON valide :
+Reponds UNIQUEMENT en JSON valide sans emojis :
 {{
   "domaine": "string",
   "contexte": "string",
@@ -330,8 +327,7 @@ Reponds UNIQUEMENT en JSON valide :
       "titre": "string",
       "observation": "string",
       "conseil": "string",
-      "priorite": "haute|moyenne|faible",
-      "icone": "emoji"
+      "priorite": "haute|moyenne|faible"
     }}
   ],
   "points_forts": ["string", "string"],
@@ -357,8 +353,9 @@ Reponds UNIQUEMENT en JSON valide :
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
-                        "temperature": 0.2,
-                        "maxOutputTokens": 4096
+                        "temperature": 0.1,
+                        "maxOutputTokens": 4096,
+                        "responseMimeType": "application/json"
                     }
                 }
             )
@@ -413,7 +410,7 @@ FICHIER 1 : {safe_str(file1_name)}
 FICHIER 2 : {safe_str(file2_name)}
 {json.dumps(data2, ensure_ascii=True, default=str)}
 
-Reponds UNIQUEMENT en JSON valide :
+Reponds UNIQUEMENT en JSON valide sans emojis :
 {{
   "resume_comparaison": "string",
   "evolution_globale": "positive|negative|stable",
@@ -440,8 +437,9 @@ Reponds UNIQUEMENT en JSON valide :
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
-                        "temperature": 0.2,
-                        "maxOutputTokens": 2048
+                        "temperature": 0.1,
+                        "maxOutputTokens": 2048,
+                        "responseMimeType": "application/json"
                     }
                 }
             )
